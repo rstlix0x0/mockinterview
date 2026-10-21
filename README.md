@@ -123,4 +123,4 @@ Issues and pull requests are welcome, especially new packs, fixes to tests that 
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE). What the content is based on, and whose names appear in it, is in [ATTRIBUTIONS.md](ATTRIBUTIONS.md).
