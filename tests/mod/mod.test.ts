@@ -9,9 +9,9 @@ const DENIED = 'Hidden during an interview round. Use the runner.'
 const T0 = Date.parse('2026-10-21T09:31:12Z')
 const CWD = '/work/proj'
 
-// What the person's own `/mi-pane` looks like to the engine.
+// What the person's own `/mockinterview-pane` looks like to the engine.
 const MI_PANE = {
-  command: 'mi-pane',
+  command: 'mockinterview-pane',
   args: '',
   origin: { kind: 'composer' },
   presentation: { isFullscreen: true, columns: 160 },
@@ -314,7 +314,7 @@ test('a malformed session file starts quietly', async ($, on) => {
 
 // ---------------------------------------------------------------- command
 
-test('/mi-pane opens the panes, then closes them', async ($, on) => {
+test('/mockinterview-pane opens the panes, then closes them', async ($, on) => {
   mock.store(on)
   const w = world(on, {})
 
@@ -329,7 +329,7 @@ test('/mi-pane opens the panes, then closes them', async ($, on) => {
   expect(w.closed).toEqual(ALL_PANES)
 })
 
-test('/mi-pane says so when no surface can place the panes', async ($, on) => {
+test('/mockinterview-pane says so when no surface can place the panes', async ($, on) => {
   mock.store(on)
   world(on, {}, false)
 

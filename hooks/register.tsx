@@ -252,7 +252,7 @@ export const register: Register = (on, options) => {
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
-      name: 'mi-pane',
+      name: 'mockinterview-pane',
       description: 'Show or hide the mockinterview pane (problem, results, scorecard, library)',
     })
 
@@ -272,7 +272,7 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  on('command.run', { command: 'mi-pane' }, async $ => {
+  on('command.run', { command: 'mockinterview-pane' }, async $ => {
     if (await hasOpenPane($)) {
       await closePanes($)
       return { text: 'mockinterview pane closed.' }

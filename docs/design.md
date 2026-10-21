@@ -356,7 +356,7 @@ The mod is `hooks/hooks.json` with `{ "modules": ["./register.tsx"] }` and a `re
 
 | Piece | API | Behaviour |
 |---|---|---|
-| Command `mi-pane` | `$.command.register` in `session.start` | Toggle the pane |
+| Command `mockinterview-pane` | `$.command.register` in `session.start` | Toggle the pane |
 | Pane `mockinterview` | `$.ui.open`, `ui.render` hook | Tabs: Problem, Results, Scorecard |
 | Status entry | `$.ui` status | Remaining time, from `started_at` and `limit_minutes` |
 | Guard | `tool.call` hook | Refuses reads of pack files during an interview |
@@ -393,7 +393,7 @@ There is deliberately no transition from `Drawn` back to `Idle` or to another `D
 
 ### 9.4 Pane enable and disable
 
-The engineer can close the pane at any time, reopen it with `/mi-pane`, and turn auto-open off with the `pane_auto_open` option. The plugin as a whole is enabled or disabled by Claude Code's plugin controls; disabling it removes the mod too.
+The engineer can close the pane at any time, reopen it with `/mockinterview-pane`, and turn auto-open off with the `pane_auto_open` option. The plugin as a whole is enabled or disabled by Claude Code's plugin controls; disabling it removes the mod too.
 
 ### 9.5 Guard hooks: friction, not security
 
