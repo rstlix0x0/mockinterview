@@ -4,7 +4,7 @@ Practice software-engineering interviews inside Claude Code. An **Interviewer** 
 
 Think of it as a small, local, open-source cousin of TestGorilla or Codility, with a patient coach attached. Nothing leaves your machine except what Claude Code itself sends to the model.
 
-> **Status: 0.1.0, early.** The plugin layer is the product. The optional pane and timer (a *mod*) use Claude Code's early-access Mods API and may break between releases. See [Limits](#honest-limits).
+> **Status: 0.2.0, early.** The plugin layer is the product. The optional pane and timer (a *mod*) use Claude Code's early-access Mods API and may break between releases. See [Limits](#honest-limits).
 
 ## Install
 
@@ -61,7 +61,7 @@ A first session:
 - **6 knowledge documents**: CS fundamentals, live-coding and system-design study guides, estimation, building blocks, simulations.
 - Estimation checker, design linter and six small simulations for testing claims (caching, hashing, queues, rate limits, fan-out, booking races).
 
-Not in 0.1.0: concurrency exercises, debugging exercises, SQL problems, the multiple-choice bank, and a behavioural round for staff candidates. The pack format is ready for them; they are on the list.
+Not in 0.2.0: concurrency exercises, debugging exercises, SQL problems, the multiple-choice bank, and a behavioural round for staff candidates. The pack format is ready for them; they are on the list.
 
 ## How a session works
 
@@ -99,7 +99,7 @@ The user and project folders are optional: create them only if you want to add c
 ## Requirements and permissions
 
 - Claude Code with plugin support (v2.1.271 or later) and Python 3.10 or newer; the runner uses only the standard library.
-- Solutions are Python in 0.1.0.
+- Solutions are Python in 0.2.0.
 - The skills call the runner through the Bash tool. To avoid a permission prompt on every call, you can allow just the runner in `.claude/settings.json`:
 
 ```json
@@ -114,7 +114,7 @@ Everything is local: sessions and work files live in `.mockinterview/` inside yo
 
 - **Guards are friction, not security.** You own the machine and can read any file. The guard only prevents accidental spoilers.
 - **The mod is early access.** It depends on the Mods API, which changes between releases. How it behaves in the Desktop app, VS Code and mobile is not verified yet; the terminal is the primary target. The plugin layer does not depend on it.
-- **Python only** for solutions and for the runner in 0.1.0.
+- **Python only** for solutions and for the runner in 0.2.0.
 - **The scorer is an AI judgement** for everything except test results. It cites evidence, and you can disagree with it.
 - **Staff behavioural round** is not included yet.
 - Problems are classic patterns written for this project; the `source` field of each pack says whether it is original, adapted or third-party.
