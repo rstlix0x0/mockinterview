@@ -6,6 +6,8 @@ Think of it as a small, local, open-source cousin of TestGorilla or Codility, wi
 
 > **Status: 0.2.0, early.** The plugin layer is the product. The optional pane and timer (a *mod*) use Claude Code's early-access Mods API and may break between releases. See [Limits](#honest-limits).
 
+> **Supported language: Python only.** Live-coding solutions must be written in Python (3.10 or newer): the runner tests only `.mockinterview/work/solution.py`, so code in another language cannot be run and scores 0 for implementation. System-design rounds involve no code, so they are not affected. Other languages are planned; see [Contributing](#contributing).
+
 ## Install
 
 You need Claude Code, and Python 3.10 or newer on your path as `python3`.
