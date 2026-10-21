@@ -42,7 +42,7 @@ hooks/register.tsx (mod) ──reads only──▶ session.json, work/PROBLEM.md
 - **Execution model**: each test case runs `tools/py_shim.py` in its own subprocess (argv list, no shell, timeout, POSIX rlimits). Expected values are *never stored* in packs; the pack's oracle computes them in-process (oracle = trusted code, hence the `trust` gate for non-built-in roots).
 - **Session state machine**: `drawn → running → (drawn for next round | finished) → scored`, or `abandoned`. In interview mode, titles/statements are withheld until `begin`, and `show`, `show --full` and `notes` are refused accordingly; hidden material reaches the interviewer only via `notes` and `hint`.
 - **Scoring**: `implementation` is computed from the last `run`; all other dimensions come from the scorer subagent's ratings JSON passed to `mi.py score`. Dimension keys and weights are fixed (see `docs/runner.md`).
-- **Mod** (`hooks/`): `register.tsx` polls the session file and renders panes; `lib/guard.ts` denies reads of pack files during an active interview round (friction, not security); `lib/format.ts` builds pane blocks. Tests use `claude-code/testing`.
+- **Mod** (`hooks/`): `register.tsx` polls the session file and renders panes; `lib/guard.ts` denies reads of pack files during an active interview round (friction, not security); `lib/format.ts` builds pane blocks; `lib/library.ts` backs the Library tab (a TS port of the runner's frontmatter parser — keep it in step with `parse_frontmatter` in `runner/lib/packs.py`). Library buttons only `$.prompt.fill` a skill command. Tests use `claude-code/testing`. `claude plugin validate` requires `$` to flow only into top-level functions of the module.
 
 ## Packs (content)
 

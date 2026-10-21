@@ -45,19 +45,64 @@ function sessionJson(over: Record<string, unknown> = {}, current: Record<string,
 
 type Files = Record<string, string>
 
+const HOME = '/home/eng'
+const ALL_PANES = ['mockinterview-problem', 'mockinterview-results', 'mockinterview-scorecard', 'mockinterview-library']
+
+// The plugin's own folder is the host's to choose: a path into its built-in
+// `content/` is spelled `PLUGIN/content/...` in the tables below.
+const canon = (path: string): string =>
+  path.startsWith(HOME) || path.startsWith(CWD) ? path : path.replace(/^.*\/content(?=\/|$)/, 'PLUGIN/content')
+
+// An exact path first, else the tail of the path: relative paths reach the
+// hooks resolved against the test's working directory.
+function lookup<T>(table: Record<string, T>, path: string): T | undefined {
+  if (path in table) return table[path]
+  if (canon(path) in table) return table[canon(path)]
+  const hit = Object.entries(table).find(([name]) => path.endsWith(`/${name}`))
+  return hit?.[1]
+}
+
+// The folders `$.fs.list` sees, derived from the files: every parent of a
+// file is a directory holding it.
+function listing(files: Files, dir: string) {
+  const names = new Map<string, 'file' | 'dir'>()
+  for (const path of Object.keys(files)) {
+    if (!path.startsWith(`${dir}/`)) continue
+    const [first, ...rest] = path.slice(dir.length + 1).split('/')
+    names.set(first, rest.length > 0 ? 'dir' : 'file')
+  }
+  return names.size === 0
+    ? undefined
+    : [...names].map(([name, kind]) => ({ name, kind, size: 1, mtimeMs: 0, isLink: false }))
+}
+
 // The world beneath the plugin: files, the working directory, the engine's tool.
-function world(on: On, files: Files, isPlaced = true) {
+function world(on: On, files: Files, isPlaced = true, isFilled = true) {
   const opened: string[] = []
   const closed: string[] = []
   const statuses: (string | undefined)[] = []
+  const fills: string[] = []
+  const toasts: string[] = []
   let invalidations = 0
   let isPaneOpen = false
 
-  // Relative paths reach the hook resolved against the test's working
-  // directory, so a file is matched by the tail of the path.
   on('fs.read', (_, e) => {
-    const hit = Object.entries(files).find(([name]) => e.path === name || e.path.endsWith(`/${name}`))
-    return hit === undefined ? { deny: 'ENOENT' } : { value: hit[1] }
+    const hit = lookup(files, e.path)
+    return hit === undefined ? { deny: 'ENOENT' } : { value: hit }
+  })
+  // Pack roots are absolute; only they are listed.
+  on('fs.list', (_, e) => {
+    const entries = listing(files, canon(e.path))
+    return entries === undefined ? { deny: 'ENOENT' } : { value: entries }
+  })
+  on('env.get', (_, e) => ({ value: e.name === 'HOME' ? HOME : undefined }))
+  on('prompt.fill', (_, e) => {
+    fills.push(e.text)
+    return { isFilled }
+  })
+  on('ui.toast', (_, e) => {
+    toasts.push(e.text)
+    return { value: undefined }
   })
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('fs.stat', (_, e) => ({
@@ -94,6 +139,8 @@ function world(on: On, files: Files, isPlaced = true) {
     opened,
     closed,
     statuses,
+    fills,
+    toasts,
     get invalidations() {
       return invalidations
     },
@@ -176,7 +223,7 @@ test('session.start opens the panes for a running session and ticks the status l
   await $.session.start({ cwd: CWD, surface: 'terminal', isInteractive: true })
   await clock.settle()
 
-  expect(w.opened).toEqual(['mockinterview-problem', 'mockinterview-results', 'mockinterview-scorecard'])
+  expect(w.opened).toEqual(ALL_PANES)
   expect(w.statuses).toContain('mockinterview 1/2 29:00 left')
 
   await clock.advance(1000)
@@ -188,7 +235,7 @@ test('session.start opens the panes for a running session and ticks the status l
   expect(w.statuses[w.statuses.length - 1]).toBe('mockinterview 1/2 time up')
 
   // the panes were opened once, not on every tick
-  expect(w.opened).toHaveLength(3)
+  expect(w.opened).toHaveLength(4)
 })
 
 test('session.start opens nothing and sets no status without a session', async ($, on) => {
@@ -216,11 +263,11 @@ test('a session that appears later opens the panes once', async ($, on) => {
 
   files['.mockinterview/session.json'] = sessionJson({ state: 'drawn' }, { title: null, started_at: null })
   await clock.advance(1000)
-  expect(w.opened).toHaveLength(3)
+  expect(w.opened).toHaveLength(4)
   expect(w.invalidations).toBeGreaterThan(0)
 
   await clock.advance(3000)
-  expect(w.opened).toHaveLength(3)
+  expect(w.opened).toHaveLength(4)
 })
 
 test('the status line clears when the round ends', async ($, on) => {
@@ -275,11 +322,11 @@ test('/mi-pane opens the panes, then closes them', async ($, on) => {
 
   const first = await $.command.run(MI_PANE)
   expect(first.text).toBe('mockinterview pane opened.')
-  expect(w.opened).toEqual(['mockinterview-problem', 'mockinterview-results', 'mockinterview-scorecard'])
+  expect(w.opened).toEqual(ALL_PANES)
 
   const second = await $.command.run(MI_PANE)
   expect(second.text).toBe('mockinterview pane closed.')
-  expect(w.closed).toEqual(['mockinterview-problem', 'mockinterview-results', 'mockinterview-scorecard'])
+  expect(w.closed).toEqual(ALL_PANES)
 })
 
 test('/mi-pane says so when no surface can place the panes', async ($, on) => {
@@ -435,5 +482,104 @@ test('a pane with a garbage session file still draws', async ($, on) => {
     props: { ...PANE_PROPS, title: 'Results' },
   })
   expect(await ui.find({ type: 'Text', text: /No active session/ })).toBeDefined()
+  await ui.unmount()
+})
+
+// ---------------------------------------------------------------- library
+
+const pack = (id: string, type: string, title: string, extra = '') =>
+  `---\nid: ${id}\ntitle: ${title}\ntype: ${type}\nlevel: [junior, mid]\ntime_minutes: 10\n${extra}---\n\n## Statement\nSECRET\n`
+
+function libraryFiles(): Files {
+  const builtin = 'PLUGIN/content'
+  return {
+    [`${builtin}/live-coding/lc-a01-two-sum.md`]: pack('lc-a01-two-sum', 'live-coding', 'Two Sum'),
+    [`${builtin}/live-coding/README.md`]: 'not a pack',
+    [`${builtin}/system-design/sd-s01-url-shortener.md`]: pack('sd-s01-url-shortener', 'system-design', 'URL Shortener'),
+    [`${builtin}/knowledge/kb-estimation.md`]: pack('kb-estimation', 'knowledge', 'Estimation'),
+    [`${builtin}/knowledge/broken.md`]: 'no frontmatter here',
+    [`${HOME}/.mockinterview/packs/kb-mine.md`]: pack('kb-mine', 'knowledge', 'My Notes'),
+    [`${CWD}/.mockinterview/packs/lc-a01-two-sum.md`]: pack('lc-a01-two-sum', 'live-coding', 'Team Two Sum'),
+  }
+}
+
+const LIBRARY = {
+  plugin: PLUGIN,
+  component: 'Pane',
+  requestId: 'mockinterview-library',
+  props: { ...PANE_PROPS, title: 'Library' },
+} as const
+
+test('Library pane lists every root by group, on every surface', async ($, on) => {
+  mock.clock(on, { now: T0 })
+  const files = libraryFiles()
+  world(on, files)
+
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ ...LIBRARY, surface })
+    expect(await ui.find({ type: 'Text', text: /^Live coding \(1\)$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^System design \(1\)$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^Knowledge \(2\)$/ })).toBeDefined()
+    // the project root overrides the built-in pack with the same id
+    expect(await ui.find({ type: 'Text', text: /^Team Two Sum$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^Two Sum$/ })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: /junior\/mid 10m project/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^My Notes$/ })).toBeDefined()
+    // only frontmatter is shown, never a statement
+    expect(await ui.find({ text: /SECRET/ })).toBeUndefined()
+    // problems get both buttons, documents Teach only
+    expect(await ui.find({ key: 'practice:sd-s01-url-shortener' })).toBeDefined()
+    expect(await ui.find({ key: 'teach:sd-s01-url-shortener' })).toBeDefined()
+    expect(await ui.find({ key: 'teach:kb-estimation' })).toBeDefined()
+    expect(await ui.find({ key: 'practice:kb-estimation' })).toBeUndefined()
+    await ui.unmount()
+  }
+})
+
+test('a Library pick puts the slash command in the prompt box', async ($, on) => {
+  mock.clock(on, { now: T0 })
+  const w = world(on, libraryFiles())
+  const ui = await $.ui.mount({ ...LIBRARY, surface: 'terminal' })
+
+  await $.ui.press({ plugin: PLUGIN, key: 'practice:lc-a01-two-sum' })
+  await $.ui.press({ plugin: PLUGIN, key: 'teach:kb-estimation' })
+
+  expect(w.fills).toEqual(['/mockinterview:practice lc-a01-two-sum', '/mockinterview:teach kb-estimation'])
+  expect(w.toasts).toHaveLength(0)
+  await ui.unmount()
+})
+
+test('a Library pick says what to type when no prompt box takes it', async ($, on) => {
+  mock.clock(on, { now: T0 })
+  const w = world(on, libraryFiles(), true, false)
+  const ui = await $.ui.mount({ ...LIBRARY, surface: 'desktop' })
+
+  await $.ui.press({ plugin: PLUGIN, key: 'practice:sd-s01-url-shortener' })
+
+  expect(w.toasts).toEqual(['Type /mockinterview:practice sd-s01-url-shortener'])
+  await ui.unmount()
+})
+
+test('Library pane hides every title during an interview round', async ($, on) => {
+  mock.clock(on, { now: T0 })
+  const files = libraryFiles()
+  files['.mockinterview/session.json'] = sessionJson({ state: 'drawn' }, { title: null, started_at: null })
+  world(on, files)
+
+  const ui = await $.ui.mount({ ...LIBRARY, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /hidden during an interview round/ })).toBeDefined()
+  expect(await ui.find({ text: /Two Sum|URL Shortener|Estimation/ })).toBeUndefined()
+  expect(await ui.find({ key: 'practice:lc-a01-two-sum' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('Library pane shows the list again in practice mode and with no packs says so', async ($, on) => {
+  mock.clock(on, { now: T0 })
+  const files: Files = { '.mockinterview/session.json': sessionJson({ mode: 'practice' }) }
+  world(on, files)
+
+  const ui = await $.ui.mount({ ...LIBRARY, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /^Live coding \(0\)$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /None found/ })).toBeDefined()
   await ui.unmount()
 })

@@ -1,10 +1,12 @@
-// mockinterview mod: a view over the runner's session file, plus a spoiler guard.
+// mockinterview mod: a view over the runner's session file, a library of
+// packs to pick from, plus a spoiler guard.
 //
 // The runner (runner/mi.py) is the single source of truth. This module only
-// READS `.mockinterview/session.json` and `.mockinterview/work/PROBLEM.md`
-// (relative to the session's working directory) and draws them. It never
-// writes, never runs the runner and registers no tools: `$.process` is
-// documented as CLI only, so the plugin layer must work without it.
+// READS `.mockinterview/session.json`, `.mockinterview/work/PROBLEM.md` and
+// the pack roots' frontmatter, and draws them. It never writes, never runs the
+// runner and registers no tools: `$.process` is documented as CLI only, so the
+// plugin layer must work without it. A Library pick only puts a skill's slash
+// command in the prompt box; the engineer sends it.
 //
 // Early-access API: see docs/design.md, sections 9 and 16.
 
@@ -18,6 +20,16 @@ import {
   type Block,
 } from './lib/format'
 import {
+  commandFor,
+  groupItems,
+  itemActions,
+  itemDetail,
+  itemFromText,
+  mergeItems,
+  type LibraryAction,
+  type LibraryItem,
+} from './lib/library'
+import {
   isActive,
   isInterviewLocked,
   parseSession,
@@ -29,13 +41,18 @@ const SESSION_FILE = '.mockinterview/session.json'
 const PROBLEM_FILE = '.mockinterview/work/PROBLEM.md'
 const POLL_MS = 1000
 const STORE_KEY = 'autoOpenedSession'
+const LIBRARY_TTL_MS = 30_000
+const MAX_DEPTH = 6
 
 // A "tab" is a pane: with more than one pane open, each pane's title is a tab.
 const PANES = [
   { id: 'mockinterview-problem', title: 'Problem', blocks: 'problem' },
   { id: 'mockinterview-results', title: 'Results', blocks: 'results' },
   { id: 'mockinterview-scorecard', title: 'Scorecard', blocks: 'scorecard' },
+  { id: 'mockinterview-library', title: 'Library', blocks: 'library' },
 ] as const
+
+const ACTION_LABELS: Record<LibraryAction, string> = { practice: 'Practice', teach: 'Teach' }
 
 type Engine = EngineInterface
 
@@ -78,6 +95,75 @@ function optionFlag(options: PluginOptions, key: string): boolean {
 function optionText(options: PluginOptions, key: string): string | undefined {
   const v = options[key]
   return typeof v === 'string' && v !== '' ? v : undefined
+}
+
+// The last scan, rescanned after LIBRARY_TTL_MS or on Refresh.
+type LibraryCache = { items: LibraryItem[]; at: number } | undefined
+type LibraryHolder = { cache: LibraryCache }
+
+// Pack roots in the runner's precedence order (later wins on a shared id):
+// built-in, user, project, then the packs_dir option. See runner/lib/util.py.
+async function packRoots($: Engine, options: PluginOptions): Promise<[string, string][]> {
+  const roots: [string, string][] = [['built-in', `${$.plugin.root}/content`]]
+  const home = (await $.env.get('HOME')) ?? (await $.env.get('USERPROFILE'))
+  if (home !== undefined && home !== '') roots.push(['user', `${home}/.mockinterview/packs`])
+  roots.push(['project', `${await $.session.cwd()}/.mockinterview/packs`])
+  const packsDir = optionText(options, 'packs_dir')
+  if (packsDir !== undefined && !packsDir.includes('${')) roots.push(['option', packsDir])
+  return roots
+}
+
+// Every pack file under one root, as the runner walks it: hidden folders and
+// README.md skipped, sorted. A missing root or unreadable entry adds nothing.
+async function walkRoot($: Engine, dir: string, depth = 0): Promise<string[]> {
+  if (depth > MAX_DEPTH) return []
+  let entries
+  try {
+    entries = await $.fs.list(dir)
+  } catch {
+    return []
+  }
+  const out: string[] = []
+  for (const entry of [...entries].sort((a, b) => a.name.localeCompare(b.name))) {
+    const path = `${dir}/${entry.name}`
+    if (entry.kind === 'dir' && !entry.name.startsWith('.')) {
+      out.push(...(await walkRoot($, path, depth + 1)))
+    } else if (entry.kind === 'file' && entry.name.endsWith('.md') && entry.name.toUpperCase() !== 'README.MD') {
+      out.push(path)
+    }
+  }
+  return out
+}
+
+async function scanLibrary($: Engine, options: PluginOptions): Promise<LibraryItem[]> {
+  const found: LibraryItem[] = []
+  for (const [label, root] of await packRoots($, options)) {
+    for (const path of await walkRoot($, root)) {
+      const text = await readText($, path)
+      const item = text === null ? null : itemFromText(text, label)
+      if (item !== null) found.push(item)
+    }
+  }
+  return mergeItems(found)
+}
+
+async function libraryItems($: Engine, options: PluginOptions, holder: LibraryHolder): Promise<LibraryItem[]> {
+  const now = await $.clock.now()
+  if (holder.cache === undefined || now - holder.cache.at > LIBRARY_TTL_MS) {
+    holder.cache = { items: await scanLibrary($, options), at: now }
+  }
+  return holder.cache.items
+}
+
+// Puts the command in the prompt box; where no box takes it, says what to type.
+async function fillCommand($: Engine, command: string): Promise<void> {
+  try {
+    const filled = await $.prompt.fill({ text: command })
+    if (filled.isFilled) return
+  } catch {
+    // fall through to the toast
+  }
+  $.ui.toast(`Type ${command}`)
 }
 
 /** The guard's verdict for one tool call. Any failure here means "allow". */
@@ -162,11 +248,12 @@ export const register: Register = (on, options) => {
   // the files on the next tick, so that costs at most one extra redraw.
   const state: TickState = { lastKey: '', lastStatus: undefined, isTicking: false }
   let timer: { cancel: () => void } | undefined
+  const library: LibraryHolder = { cache: undefined }
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'mi-pane',
-      description: 'Show or hide the mockinterview pane (problem, results, scorecard)',
+      description: 'Show or hide the mockinterview pane (problem, results, scorecard, library)',
     })
 
     // Open at start only for a session that is already running or drawn.
@@ -198,7 +285,53 @@ export const register: Register = (on, options) => {
     }
   })
 
+  on('ui.render', { component: 'Pane', requestId: 'mockinterview-library' }, async ($, e) => {
+    const { Box, Text, Button } = $.ui.resolve(e)
+    // In an interview the runner picks the problems; titles would be spoilers.
+    if (isInterviewLocked(await loadSession($))) {
+      return <Text dimColor>The library is hidden during an interview round.</Text>
+    }
+    const groups = groupItems(await libraryItems($, options, library))
+    const refresh = () => {
+      library.cache = undefined
+      $.ui.invalidate('ui.render')
+    }
+
+    return (
+      <Box flexDirection="column">
+        <Box flexDirection="row" gap={1}>
+          <Text dimColor>Pick one: the command goes into the prompt box, press Enter to start.</Text>
+          <Button key="library-refresh" dimColor onPress={refresh}>
+            Refresh
+          </Button>
+        </Box>
+        {groups.map(group => (
+          <Box key={group.type} flexDirection="column" marginTop={1}>
+            <Text bold>{`${group.title} (${group.items.length})`}</Text>
+            {group.items.length === 0 ? <Text dimColor>None found.</Text> : null}
+            {group.items.map(item => (
+              <Box key={item.id} flexDirection="row" flexWrap="wrap" columnGap={1}>
+                <Text>{item.title}</Text>
+                <Text dimColor>{itemDetail(item)}</Text>
+                {itemActions(item).map(action => (
+                  <Button
+                    key={`${action}:${item.id}`}
+                    dimColor={action === 'teach'}
+                    onPress={() => void fillCommand($, commandFor(item, action))}
+                  >
+                    {ACTION_LABELS[action]}
+                  </Button>
+                ))}
+              </Box>
+            ))}
+          </Box>
+        ))}
+      </Box>
+    )
+  })
+
   for (const pane of PANES) {
+    if (pane.blocks === 'library') continue
     on('ui.render', { component: 'Pane', requestId: pane.id }, async ($, e) => {
       const { Box, Text, Markdown, Code } = $.ui.resolve(e)
       const session = await loadSession($)

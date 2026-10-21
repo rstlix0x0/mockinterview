@@ -77,7 +77,9 @@ Scores use a 0 to 4 rubric per dimension (framing, approach, implementation, qua
 
 ## The pane (optional mod)
 
-If your Claude Code supports mods, `mockinterview` adds a pane beside the chat with the problem statement, the last test results and the scorecard, a countdown in the status line, and guards that stop you from reading hidden pack files by accident during an interview. Options (`/config`): `pane_auto_open`, `strict_guard`.
+If your Claude Code supports mods, `mockinterview` adds a pane beside the chat with the problem statement, the last test results and the scorecard, a countdown in the status line, and guards that stop you from reading hidden pack files by accident during an interview. Options (`/config`): `pane_auto_open`, `strict_guard`. Toggle the pane with `/mi-pane`.
+
+The pane's **Library** tab lists every live-coding problem, design problem and knowledge document from all pack roots. A problem has *Practice* and *Teach* buttons, a document *Teach*: a press puts `/mockinterview:practice <id>` or `/mockinterview:teach <id>` in the prompt box, and you press Enter to start. The list is hidden during an interview round, where the runner picks the problems.
 
 The mod reads the session files the runner writes; it never owns state. Without it, everything works the same through the conversation. The mod runs with Claude Code's access, so as with any plugin, install from sources you trust.
 
