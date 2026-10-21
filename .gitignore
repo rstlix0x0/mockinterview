@@ -1,0 +1,36 @@
+# mockinterview practice sessions and work files (created in any project you run it from)
+.mockinterview/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Node / Bun (mod tests)
+node_modules/
+bun.lock
+bun.lockb
+package-lock.json
+*.tsbuildinfo
+
+# Claude Code local files
+.claude/settings.local.json
+.claude/worktrees/
+CLAUDE.local.md
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+Thumbs.db
+
+# Environment and logs
+.env
+.env.*
+*.log

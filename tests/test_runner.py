@@ -1,0 +1,303 @@
+"""Runner tests. Run from the repository root:  python3 -m unittest discover -s tests -v
+
+Uses small fixture packs in tests/fixtures/content as the plugin's built-in content and temporary
+project and data folders, so nothing on the machine is touched.
+"""
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.dirname(HERE)
+MI = os.path.join(REPO, "runner", "mi.py")
+
+GOOD_COUNTER = (
+    "class MiniCounter:\n"
+    "    def __init__(self):\n        self.t = 0\n"
+    "    def add(self, x):\n        self.t += x\n"
+    "    def total(self):\n        return self.t\n"
+)
+GOOD_TWO_SUM = (
+    "def two_sum(nums, target):\n"
+    "    seen = {}\n"
+    "    for j, x in enumerate(nums):\n"
+    "        if target - x in seen:\n            return [seen[target - x], j]\n"
+    "        seen[x] = j\n"
+)
+BAD_TWO_SUM = "def two_sum(nums, target):\n    return [0, 0]\n"
+
+
+class Env:
+    def __init__(self, with_fixtures=True):
+        self.tmp = tempfile.mkdtemp(prefix="mi-test-")
+        self.plugin = os.path.join(self.tmp, "plugin")
+        self.project = os.path.join(self.tmp, "project")
+        self.data = os.path.join(self.tmp, "data")
+        os.makedirs(self.project)
+        os.makedirs(self.plugin)
+        shutil.copytree(os.path.join(REPO, "runner"), os.path.join(self.plugin, "runner"),
+                        ignore=shutil.ignore_patterns("__pycache__"))
+        if with_fixtures:
+            shutil.copytree(os.path.join(HERE, "fixtures", "content"), os.path.join(self.plugin, "content"))
+        self.home = os.path.join(self.tmp, "home")
+        os.makedirs(self.home)
+
+    def mi(self, *args, expect_ok=True, stdin=None):
+        cmd = [sys.executable, os.path.join(self.plugin, "runner", "mi.py"), "--project", self.project,
+               "--data", self.data] + list(args)
+        env = dict(os.environ, HOME=self.home)
+        p = subprocess.run(cmd, capture_output=True, text=True, input=stdin, env=env, timeout=120)
+        try:
+            out = json.loads(p.stdout)
+        except ValueError:
+            raise AssertionError("not JSON: %r %r" % (p.stdout, p.stderr))
+        if expect_ok:
+            assert out.get("ok") is True, out
+        return out, p.returncode
+
+    def write(self, rel, text):
+        path = os.path.join(self.project, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        return path
+
+    def solution(self, text):
+        return self.write(".mockinterview/work/solution.py", text)
+
+    def cleanup(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+
+class RunnerTest(unittest.TestCase):
+    def setUp(self):
+        self.env = Env()
+        self.addCleanup(self.env.cleanup)
+
+    # ---------------------------------------------------------------- packs
+    def test_list_filters_and_roots(self):
+        out, _ = self.env.mi("list", "--type", "live-coding", "--level", "senior", "--roots")
+        self.assertEqual([p["id"] for p in out["packs"]], ["lc-fx-counter"])
+        self.assertEqual(out["roots"][0]["label"], "built-in")
+        self.assertTrue(out["roots"][0]["trusted"])
+
+    def test_lint_and_selftest_pass(self):
+        out, code = self.env.mi("lint", "--all")
+        self.assertTrue(out["pass"], out)
+        self.assertEqual(code, 0)
+        out, code = self.env.mi("selftest", "--all", "--perf")
+        self.assertTrue(out["pass"], out)
+        self.assertEqual(out["checked"], 2)
+
+    def test_lint_catches_broken_pack(self):
+        bad = os.path.join(self.env.tmp, "bad.md")
+        with open(bad, "w") as fh:
+            fh.write("---\nid: lc-bad\ntitle: Bad\ntype: live-coding\nlevel: [expert]\ntags: [x]\n"
+                     "time_minutes: 5\nentry: f\nkind: func\nruns_code: true\nlanguages: [python]\n---\n"
+                     "# Bad\n\n## Statement\n\nx\n")
+        out, code = self.env.mi("lint", bad)
+        self.assertFalse(out["pass"])
+        self.assertEqual(code, 1)
+        errors = " ".join(out["results"][0]["errors"])
+        self.assertIn("level 'expert'", errors)
+        self.assertIn("missing section", errors)
+
+    def test_project_pack_overrides_builtin_and_needs_trust(self):
+        src = os.path.join(self.env.plugin, "content", "live-coding", "lc-fx-two-sum.md")
+        with open(src, encoding="utf-8") as fh:
+            text = fh.read().replace("Two Sum (fixture)", "Two Sum (team copy)")
+        self.env.write(".mockinterview/packs/lc-fx-two-sum.md", text)
+        out, _ = self.env.mi("list", "--roots")
+        self.assertEqual(out["overrides"][0]["id"], "lc-fx-two-sum")
+        title = [p["title"] for p in out["packs"] if p["id"] == "lc-fx-two-sum"][0]
+        self.assertEqual(title, "Two Sum (team copy)")
+        refused, code = self.env.mi("pick", "lc-fx-two-sum", expect_ok=False)
+        self.assertEqual(refused["code"], "untrusted")
+        self.assertEqual(code, 1)
+        self.env.mi("trust", os.path.join(self.env.project, ".mockinterview", "packs"))
+        ok, _ = self.env.mi("pick", "lc-fx-two-sum")
+        self.assertEqual(ok["title"], "Two Sum (team copy)")
+
+    # ------------------------------------------------------------ interview
+    def test_draw_is_reproducible_hidden_and_not_rerollable(self):
+        a, _ = self.env.mi("draw", "--level", "senior", "--seed", "7")
+        self.assertNotIn("title", json.dumps(a))
+        self.assertNotIn("fx-", json.dumps(a["rounds"]))
+        self.assertEqual(a["rounds_total"], 3)
+        first = json.load(open(os.path.join(self.env.project, ".mockinterview", "session.json")))
+        again, code = self.env.mi("draw", "--level", "senior", "--seed", "7", expect_ok=False)
+        self.assertEqual(again["code"], "session_active")
+        self.env.mi("abandon")
+        self.env.mi("draw", "--level", "senior", "--seed", "7")
+        second = json.load(open(os.path.join(self.env.project, ".mockinterview", "session.json")))
+        self.assertEqual([r["problem"] for r in first["loop"]], [r["problem"] for r in second["loop"]])
+        self.assertIsNone(first["loop"][0]["title"])
+
+    def test_bad_level(self):
+        out, code = self.env.mi("draw", "--level", "wizard", expect_ok=False)
+        self.assertEqual(out["code"], "bad_level")
+        self.assertEqual(code, 1)
+
+    def test_full_interview_flow(self):
+        env = self.env
+        env.mi("draw", "--level", "senior", "--seed", "7")
+        refused, _ = env.mi("show", "lc-fx-two-sum", expect_ok=False)
+        self.assertEqual(refused["code"], "hidden_during_interview")
+        early, _ = env.mi("notes", expect_ok=False)
+        self.assertEqual(early["code"], "bad_state")
+        begin, _ = env.mi("begin")
+        self.assertEqual(begin["state"], "running")
+        self.assertEqual(begin["limit_seconds"], 600)
+        self.assertTrue(os.path.exists(os.path.join(env.project, ".mockinterview", "work", "PROBLEM.md")))
+        # hint ladder in order with costs
+        h0, _ = env.mi("hint")
+        h1, _ = env.mi("hint")
+        self.assertEqual((h0["rung"], h0["cost"], h1["rung"], h1["cost"]), ("H0", 0, "H1", 5))
+        # stub fails; hidden details are not shown in interview mode
+        env.solution(open(os.path.join(env.project, ".mockinterview", "work", "solution.py")).read())
+        out, code = env.mi("run")
+        self.assertEqual(code, 1)
+        self.assertFalse(out["pass"])
+        hidden = [f for f in out["failures"] if f["category"] != "visible"]
+        self.assertTrue(hidden and all(not f["shown"] and "expected" not in f for f in hidden))
+        # fix it and finish round 1
+        env.solution(GOOD_COUNTER)
+        out, code = env.mi("run")
+        self.assertEqual((code, out["passed"], out["total"]), (0, 6, 6))
+        fin, _ = env.mi("finish")
+        self.assertEqual(fin["state"], "drawn")
+        self.assertEqual(fin["next"]["round_number"], 2)
+        st, _ = env.mi("status")
+        self.assertIsNone(st["title"])
+        # round 2 archives the earlier solution instead of overwriting it
+        b2, _ = env.mi("begin")
+        self.assertIn("archived_previous", b2)
+        self.assertTrue(os.path.exists(os.path.join(env.project, b2["archived_previous"])))
+        env.solution(GOOD_TWO_SUM)
+        env.mi("run", "--perf")
+        env.mi("finish")
+        # round 3, the design round
+        b3, _ = env.mi("begin")
+        self.assertEqual(b3["type"], "system-design")
+        self.assertTrue(os.path.exists(os.path.join(env.project, ".mockinterview", "work", "design.md")))
+        env.write(".mockinterview/work/estimate.json", json.dumps({
+            "assumptions": {"dau": 3330000, "writes_per_user_day": 1, "reads_per_user_day": 100,
+                            "bytes_per_write": 500, "bytes_per_read": 500, "peak_factor": 2,
+                            "retention_years": 5, "replication": 3, "server_qps": 2000},
+            "claims": {"write_qps": 40, "read_qps": 3900}}))
+        est, _ = env.mi("estimate-check")
+        self.assertTrue(est["pass"], est)
+        p0, _ = env.mi("hint")
+        self.assertEqual(p0["rung"], "P0")
+        notes, _ = env.mi("notes", "--section", "reference")
+        self.assertIn("key-value store", notes["text"])
+        fin, _ = env.mi("finish")
+        self.assertEqual(fin["state"], "finished")
+        # scoring: incomplete ratings are refused, then accepted
+        bad, code = env.mi("score", "--ratings", "-", stdin=json.dumps({"ratings": {}}), expect_ok=False)
+        self.assertEqual(bad["code"], "bad_ratings")
+        ratings = {
+            "ratings": {
+                "lc-fx-counter": dict(framing=3, approach=3, quality=3, testing=2, communication=3, adaptability=3),
+                "lc-fx-two-sum": dict(framing=4, approach=4, quality=3, testing=3, communication=3, adaptability=3),
+                "sd-fx-shortener": dict(scoping=3, estimation=2, architecture=3, deep_dives=2, reliability=2,
+                                        communication=3),
+            },
+            "top_gap": "testing",
+        }
+        scored, _ = env.mi("score", "--ratings", "-", stdin=json.dumps(ratings))
+        card = scored["scorecard"]
+        by = {r["problem"]: r for r in card["rounds"]}
+        # implementation 4/4 from a full pass: 25 weight is added in full
+        self.assertEqual(by["lc-fx-counter"]["ratings"]["implementation"], 4.0)
+        self.assertEqual(by["lc-fx-counter"]["penalty"], 5)
+        self.assertEqual(by["lc-fx-counter"]["score"], 72.5)
+        self.assertEqual(by["sd-fx-shortener"]["penalty"], 0)
+        self.assertAlmostEqual(card["total"], round(sum(r["score"] for r in card["rounds"]) / 3, 1))
+        again, _ = env.mi("score", "--ratings", "-", stdin=json.dumps(ratings), expect_ok=False)
+        self.assertEqual(again["code"], "bad_state")
+        hist, _ = env.mi("history")
+        self.assertEqual(hist["sessions"], 1)
+        self.assertIn("hash-map", hist["tags"])
+        # after the interview the hidden material may be read again
+        shown, _ = env.mi("show", "lc-fx-two-sum", "--full")
+        self.assertIn("## Oracle", shown["text"])
+
+    def test_abandon_is_logged_and_not_scored(self):
+        self.env.mi("draw", "--level", "mid", "--seed", "1")
+        self.env.mi("abandon")
+        hist, _ = self.env.mi("history")
+        self.assertEqual(hist["last"][0]["state"], "abandoned")
+        self.assertEqual(hist["tags"], {})
+
+    # ------------------------------------------------------------- practice
+    def test_practice_shows_edge_details_and_allows_replace(self):
+        env = self.env
+        env.mi("pick", "lc-fx-two-sum")
+        env.mi("begin")
+        env.solution(BAD_TWO_SUM)
+        out, code = env.mi("run", "--mode", "all")
+        self.assertEqual(code, 1)
+        edge = [f for f in out["failures"] if f["category"] == "edge"]
+        self.assertTrue(edge and edge[0]["shown"] and "expected" in edge[0])
+        blocked, _ = env.mi("pick", "lc-fx-counter", expect_ok=False)
+        self.assertEqual(blocked["code"], "session_active")
+        env.mi("pick", "lc-fx-counter", "--replace")
+
+    def test_visible_mode_runs_only_visible(self):
+        env = self.env
+        env.mi("pick", "lc-fx-two-sum")
+        env.mi("begin")
+        env.solution(GOOD_TWO_SUM)
+        out, _ = env.mi("run", "--mode", "visible")
+        self.assertEqual(out["by_category"], {"visible": "1/1"})
+
+    def test_perf_flag_catches_slow_solution(self):
+        env = self.env
+        env.mi("pick", "lc-fx-two-sum")
+        env.mi("begin")
+        env.solution("def two_sum(nums, target):\n"
+                     "    import time\n    time.sleep(4)\n    return [0, 1]\n")
+        out, _ = env.mi("run", "--mode", "all", "--perf", "--timeout", "2")
+        self.assertFalse(out["pass"])
+
+    def test_repeat_marks_and_lists(self):
+        out, _ = self.env.mi("repeat", "lc-fx-two-sum", "--reason", "had | to give the idea", "--days", "0")
+        self.assertEqual(out["file"], os.path.join(".mockinterview", "repeat.md"))
+        listing, _ = self.env.mi("repeat", "--list")
+        self.assertEqual(listing["entries"][0]["problem"], "lc-fx-two-sum")
+        self.assertEqual(listing["entries"][0]["reason"], "had / to give the idea")
+        self.assertTrue(listing["entries"][0]["due"])
+        bad, code = self.env.mi("repeat", "no-such-pack", "--reason", "x", expect_ok=False)
+        self.assertEqual((bad["code"], code), ("not_found", 1))
+
+    def test_notes_by_problem_and_inherited_blocks(self):
+        env = self.env
+        env.mi("pick", "sd-fx-shortener")
+        env.mi("begin")
+        text = env.mi("notes", "--section", "followups")[0]["text"]
+        self.assertIn("cache disappears", text)
+        ref = env.mi("notes", "--section", "reference")[0]["text"]
+        self.assertIn("key-value store", ref)
+        other, _ = env.mi("notes", "--problem", "lc-fx-two-sum", expect_ok=False)
+        self.assertEqual(other["code"], "not_found")
+
+    def test_commands_need_a_session(self):
+        out, code = self.env.mi("run", expect_ok=False)
+        self.assertEqual((out["code"], code), ("no_session", 1))
+        st, _ = self.env.mi("status")
+        self.assertEqual(st["state"], "idle")
+
+    def test_data_value_with_unexpanded_variable_is_ignored(self):
+        cmd = [sys.executable, MI, "--project", self.env.project, "--data", "${CLAUDE_PLUGIN_DATA}", "history"]
+        p = subprocess.run(cmd, capture_output=True, text=True, env=dict(os.environ, HOME=self.env.home))
+        self.assertTrue(json.loads(p.stdout)["ok"])
+        self.assertFalse(os.path.exists(os.path.join(self.env.project, "${CLAUDE_PLUGIN_DATA}")))
+
+
+if __name__ == "__main__":
+    unittest.main()

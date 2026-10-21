@@ -1,0 +1,48 @@
+{
+  "name": "mockinterview",
+  "displayName": "Mock Interview",
+  "version": "0.1.0",
+  "description": "Practice software-engineering interviews inside Claude Code: timed live-coding and system-design rounds run by an Interviewer persona, a Teacher for explanations, your own problems as Markdown packs, and scorecards with history.",
+  "author": {
+    "name": "Hiraq",
+    "url": "https://github.com/rstlix0x0"
+  },
+  "homepage": "https://github.com/rstlix0x0/mockinterview",
+  "repository": "https://github.com/rstlix0x0/mockinterview",
+  "license": "MIT",
+  "keywords": [
+    "interview",
+    "mock-interview",
+    "live-coding",
+    "system-design",
+    "practice",
+    "career"
+  ],
+  "userConfig": {
+    "default_level": {
+      "type": "string",
+      "title": "Default level",
+      "description": "Level used by /mockinterview:interview. Choose ask to be asked every time.",
+      "options": ["ask", "junior", "mid", "senior", "staff"],
+      "default": "ask"
+    },
+    "packs_dir": {
+      "type": "directory",
+      "title": "Extra packs folder",
+      "description": "Optional folder with your own problem and knowledge packs (Markdown files). Leave empty to use only the built-in content and the optional ~/.mockinterview/packs and .mockinterview/packs folders.",
+      "required": false
+    },
+    "pane_auto_open": {
+      "type": "boolean",
+      "title": "Open the pane automatically",
+      "description": "Mod only: open the interview pane when a session starts. Needs a terminal wide enough for the pane.",
+      "default": true
+    },
+    "strict_guard": {
+      "type": "boolean",
+      "title": "Block reading hidden pack files during an interview",
+      "description": "Mod only: refuse reads of pack files while an interview round is active. This prevents accidental spoilers; it is not a security feature.",
+      "default": true
+    }
+  }
+}

@@ -1,0 +1,155 @@
+---
+id: lc-c04-task-scheduler
+title: Task Scheduler with Dependencies and Workers
+type: live-coding
+level: [senior, staff]
+tags: [graph, simulation, heap]
+time_minutes: 45
+languages: [python]
+entry: schedule_tasks
+kind: func
+runs_code: true
+source: adapted
+author: mockinterview
+legacy_id: C4
+---
+
+# Task Scheduler with Dependencies and Workers
+
+## Statement
+
+`tasks` is a list of `{id, duration, deps}`. A task can start only after every task in `deps` has **finished**. There are `workers` identical workers; each runs one task at a time and tasks are not preempted. Simulate the schedule:
+
+1. Time starts at 0. Whenever a worker is free and a task is ready, start the ready task with the **smallest id** (plain string comparison).
+2. At a given instant, all tasks that finish at that instant free their workers and release their dependants **before** new tasks are assigned.
+
+Return `{"makespan": T, "starts": {id: start_time}}` where `T` is the time the last task finishes (0 when there are no tasks). Error handling, checked in this order:
+
+- any dependency names an unknown task: `{"error": "unknown_dependency"}`
+- the dependency graph has a cycle (a self-dependency counts): `{"error": "cycle"}`
+
+**Signature:** `schedule_tasks(tasks: {id: string, duration: int, deps: string[]}[], workers: int) -> object`
+
+**Constraints:**
+- 0 <= len(tasks) <= 50000
+- 1 <= duration <= 10^6
+- 1 <= workers <= 1000
+- ids are unique; deps may repeat
+
+**Examples:**
+
+- **Example 1** - input: `{"tasks":[{"id":"a","duration":3,"deps":[]},{"id":"b","duration":2,"deps":["a"]},{"id":"c","duration":4,"deps":["a"]}],"workers":2}`  
+  output: `{"makespan":7,"starts":{"a":0,"b":3,"c":3}}`
+- **Example 2** - input: `{"tasks":[{"id":"x","duration":1,"deps":["y"]},{"id":"y","duration":1,"deps":["x"]}],"workers":1}`  
+  output: `{"error":"cycle"}`
+
+## Stub
+
+```python
+def schedule_tasks(tasks, workers):
+    """schedule_tasks(tasks: {id: string, duration: int, deps: string[]}[], workers: int) -> object"""
+    raise NotImplementedError
+```
+
+## Tests
+
+```json tests
+{"function":"schedule_tasks","kind":"func","compare":"exact","fuzz":40,"perf":{"sizes":[5000,20000,50000],"limit_ms":5000,"max_exponent":1.5},"cases":[
+{"name":"example-1","tags":["visible"],"args":{"tasks":[{"id":"a","duration":3,"deps":[]},{"id":"b","duration":2,"deps":["a"]},{"id":"c","duration":4,"deps":["a"]}],"workers":2}},
+{"name":"example-2","tags":["visible"],"args":{"tasks":[{"id":"x","duration":1,"deps":["y"]},{"id":"y","duration":1,"deps":["x"]}],"workers":1}},
+{"name":"edge-empty","tags":["edge"],"args":{"tasks":[],"workers":3}},
+{"name":"edge-unknown-dep","tags":["edge"],"args":{"tasks":[{"id":"a","duration":1,"deps":["zzz"]}],"workers":1}},
+{"name":"edge-self-dependency","tags":["edge"],"args":{"tasks":[{"id":"a","duration":1,"deps":["a"]}],"workers":1}},
+{"name":"hidden-unknown-beats-cycle","tags":["hidden"],"args":{"tasks":[{"id":"a","duration":1,"deps":["b"]},{"id":"b","duration":1,"deps":["a","q"]}],"workers":1}},
+{"name":"hidden-tie-by-id","tags":["hidden"],"args":{"tasks":[{"id":"b","duration":2,"deps":[]},{"id":"a","duration":2,"deps":[]},{"id":"c","duration":2,"deps":[]}],"workers":2}},
+{"name":"hidden-finish-before-assign","tags":["hidden"],"args":{"tasks":[{"id":"a","duration":2,"deps":[]},{"id":"b","duration":2,"deps":[]},{"id":"c","duration":1,"deps":["a","b"]}],"workers":2}},
+{"name":"hidden-duplicate-deps","tags":["hidden"],"args":{"tasks":[{"id":"a","duration":1,"deps":[]},{"id":"b","duration":1,"deps":["a","a"]}],"workers":1}}
+]}
+```
+
+## Oracle
+
+```python oracle
+def solve(tasks, workers):
+    byid = {t["id"]: t for t in tasks}
+    for t in tasks:
+        for d in t["deps"]:
+            if d not in byid:
+                return {"error": "unknown_dependency"}
+    indeg = {t["id"]: len(set(t["deps"])) for t in tasks}
+    children = defaultdict(list)
+    for t in tasks:
+        for d in set(t["deps"]):
+            children[d].append(t["id"])
+    ready = [i for i, k in indeg.items() if k == 0]
+    heapq.heapify(ready)
+    running, starts = [], {}
+    free, now, done = workers, 0, 0
+    while done < len(tasks):
+        while free and ready:
+            i = heapq.heappop(ready)
+            starts[i] = now
+            heapq.heappush(running, (now + byid[i]["duration"], i))
+            free -= 1
+        if not running:
+            return {"error": "cycle"}
+        now = running[0][0]
+        while running and running[0][0] == now:
+            _, i = heapq.heappop(running)
+            free += 1
+            done += 1
+            for c in children[i]:
+                indeg[c] -= 1
+                if indeg[c] == 0:
+                    heapq.heappush(ready, c)
+    return {"makespan": now, "starts": starts}
+
+def gen_random(seed):
+    rnd = random.Random(seed)
+    n = rnd.randint(0, 7)
+    ids = ["t%d" % i for i in range(n)]
+    tasks = []
+    for i, tid in enumerate(ids):
+        deps = [d for d in ids[:i] if rnd.random() < 0.3]
+        tasks.append({"id": tid, "duration": rnd.randint(1, 5), "deps": deps})
+    r = rnd.random()
+    if tasks and r < 0.12:
+        tasks[0]["deps"].append("ghost")
+    elif tasks and r < 0.25:
+        tasks[0]["deps"].append(ids[-1])
+    rnd.shuffle(tasks)
+    return {"tasks": tasks, "workers": rnd.randint(1, 3)}
+
+def gen_perf(n):
+    rnd = random.Random(104)
+    tasks = []
+    for i in range(n):
+        deps = ["t%06d" % rnd.randrange(max(0, i - 50), i) for _ in range(2)] if i else []
+        tasks.append({"id": "t%06d" % i, "duration": rnd.randint(1, 20), "deps": deps})
+    rnd.shuffle(tasks)
+    return {"tasks": tasks, "workers": 8}
+```
+
+## Interviewer notes
+
+- **Target complexity:** O((V + E) log V)
+- **Scaling check:** sizes [5000, 20000, 50000], limit 5000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.5
+- **Clarifying questions (answer verbatim):**
+  - Q: Is the id comparison numeric?  
+    A: No, plain string comparison.
+  - Q: Can a worker sit idle while a task is ready?  
+    A: No.
+- **Hint ladder:**
+  - H0 (free): Which two data structures drive a discrete-event simulation here?
+  - H1 (-5): A min-heap of ready ids and a min-heap of (finish_time, id) for running tasks.
+  - H2 (-10): Jump the clock straight to the next finish time instead of ticking.
+  - H3 (-20): If nothing is running and unfinished tasks remain, the graph has a cycle. Check unknown dependencies first.
+- **Follow-ups:**
+  - Compute the critical path (the chain that determines the makespan).
+  - Different worker speeds.
+  - A task failing and being retried: how does the simulation change?
+- **Mistakes the tests are built to catch:**
+  - Assigning before releasing the finished tasks at the same instant.
+  - Ticking the clock one unit at a time (duration up to 10^6).
+  - Numeric id ordering.
+  - Reporting cycle before unknown_dependency.

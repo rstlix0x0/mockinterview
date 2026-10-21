@@ -1,0 +1,17 @@
+{
+  "name": "mockinterview",
+  "owner": {
+    "name": "rstlix0x0",
+    "url": "https://github.com/rstlix0x0"
+  },
+  "description": "A one-plugin marketplace for mockinterview: mock software-engineering interviews with an AI interviewer and teacher.",
+  "plugins": [
+    {
+      "name": "mockinterview",
+      "source": "./",
+      "description": "Timed live-coding and system-design mock interviews, a teacher persona, your own problem packs, scorecards and history.",
+      "category": "education",
+      "tags": ["interview", "live-coding", "system-design", "practice"]
+    }
+  ]
+}
