@@ -3,5 +3,8 @@
     "commit": "",
     "pr": "",
     "sessionUrl": false
+  },
+  "enabledPlugins": {
+    "mockinterview@mockinterview": true
   }
 }
