@@ -90,6 +90,7 @@ class Ctx:
             ("user", os.path.join(home, ".mockinterview", "packs")),
             ("project", os.path.join(self.mi_dir, "packs")),
         ] + [("option", os.path.abspath(os.path.expanduser(r))) for r in (roots or []) if r and "${" not in r]
+        self.home = home
 
     @staticmethod
     def _resolve_data(data):
@@ -101,3 +102,9 @@ class Ctx:
     def all_roots(self):
         """[(label, path)] in precedence order, later wins."""
         return [("built-in", self.builtin_root)] + self.extra_roots
+
+    def language_roots(self):
+        """[(label, path)] of language-file folders, later wins."""
+        return [("built-in", os.path.join(self.plugin_root, "languages")),
+                ("user", os.path.join(self.home, ".mockinterview", "languages")),
+                ("project", os.path.join(self.mi_dir, "languages"))]

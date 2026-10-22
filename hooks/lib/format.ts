@@ -18,9 +18,10 @@ const clip = (s: string): string =>
 function header(s: Session): Block {
   const level = s.level === null ? '' : `, ${s.level}`
   const total = Math.max(s.roundsTotal, 1)
+  const language = s.language === null ? '' : `, ${s.language}`
   return {
     kind: 'dim',
-    text: `${s.mode}${level}, round ${s.round + 1} of ${total}, ${s.state}`,
+    text: `${s.mode}${level}, round ${s.round + 1} of ${total}, ${s.state}${language}`,
   }
 }
 

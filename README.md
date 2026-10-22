@@ -6,11 +6,11 @@ Think of it as a small, local, open-source cousin of TestGorilla or Codility, wi
 
 > **Status: 0.2.0, early.** The plugin layer is the product. The optional pane and timer (a *mod*) use Claude Code's early-access Mods API and may break between releases. See [Limits](#honest-limits).
 
-> **Supported language: Python only.** Live-coding solutions must be written in Python (3.10 or newer): the runner tests only `.mockinterview/work/solution.py`, so code in another language cannot be run and scores 0 for implementation. System-design rounds involve no code, so they are not affected. Other languages are planned; see [Contributing](#contributing).
+> **Supported language: Python only.** Live-coding solutions must be written in Python (3.11 or newer): the runner tests `.mockinterview/work/solution.py`, so code in another language cannot be run and scores 0 for implementation. System-design rounds involve no code, so they are not affected. JavaScript, Go and Rust are planned; see [docs/languages.md](docs/languages.md).
 
 ## Install
 
-You need Claude Code, and Python 3.10 or newer on your path as `python3`.
+You need Claude Code, and Python 3.11 or newer on your path as `python3`.
 
 **Terminal** (inside a Claude Code session):
 
@@ -100,8 +100,8 @@ The user and project folders are optional: create them only if you want to add c
 
 ## Requirements and permissions
 
-- Claude Code with plugin support (v2.1.271 or later) and Python 3.10 or newer; the runner uses only the standard library.
-- Solutions are Python in 0.2.0.
+- Claude Code with plugin support (v2.1.271 or later) and Python 3.11 or newer; the runner uses only the standard library.
+- Solutions are Python in 0.2.0. In an interview round they may import only the standard library; practice and teach allow any installed package.
 - The skills call the runner through the Bash tool. To avoid a permission prompt on every call, you can allow just the runner in `.claude/settings.json`:
 
 ```json

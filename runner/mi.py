@@ -6,19 +6,20 @@
 Every command prints one JSON object. See docs/runner.md for the contract.
 Exit codes: 0 success, 1 user/state error or a failing test, 2 internal error.
 """
-import argparse
-import os
 import sys
-import traceback
+
+if sys.version_info < (3, 11):  # before any import that needs 3.11 (tomllib)
+    sys.stdout.write('{"ok": false, "error": "Python 3.11 or newer is required", "code": "python_version"}\n')
+    sys.exit(2)
+
+import argparse  # noqa: E402
+import os  # noqa: E402
+import traceback  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from lib import commands  # noqa: E402
 from lib.util import Ctx, MiError, emit  # noqa: E402
-
-if sys.version_info < (3, 10):
-    sys.stdout.write('{"ok": false, "error": "Python 3.10 or newer is required", "code": "python_version"}\n')
-    sys.exit(2)
 
 
 def add_globals(p, suppress=False):
@@ -28,6 +29,11 @@ def add_globals(p, suppress=False):
     p.add_argument("--root", action="append", default=d, help="extra pack root (repeatable)")
     p.add_argument("--plugin-root", default=d, help="plugin root (default: parent of runner/)")
     p.add_argument("--pretty", action="store_true", default=d, help="indented JSON")
+
+
+def add_language(p):
+    p.add_argument("--lang", help="solution language id (default: python); see langs")
+    p.add_argument("--runtime", help="one of the language's runtimes (default: the first found)")
 
 
 def build_parser():
@@ -59,14 +65,18 @@ def build_parser():
     p.add_argument("--level", required=True)
     p.add_argument("--type")
     p.add_argument("--seed", type=int)
+    add_language(p)
 
     p = cmd("pick", commands.cmd_pick, "start a practice session on one problem")
     p.add_argument("id")
     p.add_argument("--replace", action="store_true", help="replace an unfinished practice session")
+    add_language(p)
+
+    cmd("langs", commands.cmd_langs, "list solution languages and whether their toolchain is installed")
 
     cmd("begin", commands.cmd_begin, "start the clock and reveal the statement")
 
-    p = cmd("run", commands.cmd_run, "run the tests against work/solution.py")
+    p = cmd("run", commands.cmd_run, "run the tests against the solution file in work/")
     p.add_argument("--mode", choices=("visible", "all"), default="all")
     p.add_argument("--perf", action="store_true", help="also run the scaling checks")
     p.add_argument("--fuzz", type=int, default=None, help="random cases (default: the pack's setting)")

@@ -39,8 +39,9 @@ class Env:
         self.data = os.path.join(self.tmp, "data")
         os.makedirs(self.project)
         os.makedirs(self.plugin)
-        shutil.copytree(os.path.join(REPO, "runner"), os.path.join(self.plugin, "runner"),
-                        ignore=shutil.ignore_patterns("__pycache__"))
+        for part in ("runner", "languages"):
+            shutil.copytree(os.path.join(REPO, part), os.path.join(self.plugin, part),
+                            ignore=shutil.ignore_patterns("__pycache__"))
         if with_fixtures:
             shutil.copytree(os.path.join(HERE, "fixtures", "content"), os.path.join(self.plugin, "content"))
         self.home = os.path.join(self.tmp, "home")
@@ -68,6 +69,10 @@ class Env:
 
     def solution(self, text):
         return self.write(".mockinterview/work/solution.py", text)
+
+    def session(self):
+        with open(os.path.join(self.project, ".mockinterview", "session.json"), encoding="utf-8") as fh:
+            return json.load(fh)
 
     def cleanup(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
@@ -297,6 +302,108 @@ class RunnerTest(unittest.TestCase):
         p = subprocess.run(cmd, capture_output=True, text=True, env=dict(os.environ, HOME=self.env.home))
         self.assertTrue(json.loads(p.stdout)["ok"])
         self.assertFalse(os.path.exists(os.path.join(self.env.project, "${CLAUDE_PLUGIN_DATA}")))
+
+
+class LanguageTest(unittest.TestCase):
+    def setUp(self):
+        self.env = Env()
+        self.addCleanup(self.env.cleanup)
+
+    def user_language(self, text):
+        path = os.path.join(self.env.home, ".mockinterview", "languages", "py2.toml")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        return os.path.dirname(path)
+
+    def test_langs_lists_python(self):
+        out, _ = self.env.mi("langs")
+        py = [x for x in out["languages"] if x["id"] == "python"][0]
+        self.assertEqual(out["default"], "python")
+        self.assertTrue(py["available"] and py["trusted"])
+        self.assertEqual(py["solution"], "solution.py")
+        self.assertTrue(py["version"].startswith("Python 3."))
+
+    def test_session_records_language_and_print_is_harmless(self):
+        env = self.env
+        picked, _ = env.mi("pick", "lc-fx-two-sum")
+        self.assertEqual(picked["language"], "python")
+        session = env.session()
+        self.assertEqual((session["language"], session["runtime"]), ("python", None))
+        self.assertEqual(session["solution"], os.path.join(".mockinterview", "work", "solution.py"))
+        env.mi("begin")
+        env.solution("print('debugging')\n" + GOOD_TWO_SUM.replace("    seen = {}\n", "    seen = {}\n    print(nums)\n"))
+        out, code = env.mi("run")
+        self.assertEqual((code, out["failed"]), (0, 0), out)
+        st, _ = env.mi("status")
+        self.assertEqual((st["language"], st["solution"]), ("python", session["solution"]))
+
+    def test_design_session_has_no_language(self):
+        out, _ = self.env.mi("pick", "sd-fx-shortener", "--lang", "python")
+        self.assertNotIn("language", out)
+        self.assertIsNone(self.env.session()["language"])
+
+    def test_unknown_language_and_runtime(self):
+        out, code = self.env.mi("pick", "lc-fx-two-sum", "--lang", "cobol", expect_ok=False)
+        self.assertEqual((out["code"], code), ("unknown_language", 1))
+        self.assertIn("python", out["error"])
+        out, _ = self.env.mi("pick", "lc-fx-two-sum", "--runtime", "pypy", expect_ok=False)
+        self.assertEqual(out["code"], "unknown_runtime")
+        self.assertFalse(os.path.exists(os.path.join(self.env.project, ".mockinterview", "session.json")))
+
+    def test_interview_refuses_third_party_imports_practice_allows_them(self):
+        env = self.env
+        env.mi("draw", "--level", "senior", "--seed", "7")
+        env.mi("begin")
+        env.solution("import os, collections.abc\nimport numpy as np\nfrom requests import get\n" + GOOD_COUNTER)
+        out, code = env.mi("run", expect_ok=False)
+        self.assertEqual((out["code"], code, out["found"]), ("dependencies_not_allowed", 1, ["numpy", "requests"]))
+        self.assertIn("standard library only", out["error"])
+        env.mi("abandon")
+        env.mi("pick", "lc-fx-two-sum")
+        env.mi("begin")
+        env.solution("import mi_no_such_package\n" + GOOD_TWO_SUM)
+        out, code = env.mi("run")
+        self.assertEqual(code, 1)
+        self.assertIn("mi_no_such_package", json.dumps(out["failures"]))
+
+    def test_user_language_needs_trust_and_picks_the_first_runtime_found(self):
+        env = self.env
+        shim = os.path.join(env.plugin, "languages", "shims", "py_shim.py")
+        root = self.user_language(
+            'id = "py2"\nname = "Python, renamed"\nsolution = "answer.py"\nshim = %s\n'
+            'detect = ["{python}", "--version"]\nrun = ["{python}", "{shim}", "{solution}", "{result}"]\n'
+            'stub_func = "def {entry}({params}):\\n    return None\\n"\nstub_ops = "class {entry}:\\n    pass\\n"\n'
+            'time_factor = 2\n'
+            '[[runtimes]]\nid = "missing"\ndetect = ["mi-no-such-binary"]\nrun = ["mi-no-such-binary"]\n'
+            '[[runtimes]]\nid = "here"\ndetect = ["{python}", "--version"]\n'
+            'run = ["{python}", "{shim}", "{solution}", "{result}"]\n' % json.dumps(shim))
+        out, _ = env.mi("pick", "lc-fx-two-sum", "--lang", "py2", expect_ok=False)
+        self.assertEqual(out["code"], "untrusted")
+        env.mi("trust", root)
+        out, _ = env.mi("pick", "lc-fx-two-sum", "--lang", "py2", "--runtime", "missing", expect_ok=False)
+        self.assertEqual(out["code"], "toolchain_missing")
+        out, _ = env.mi("pick", "lc-fx-two-sum", "--lang", "py2")
+        self.assertEqual(out["runtime"], "here")
+        begin, _ = env.mi("begin")
+        self.assertEqual(begin["files"]["solution"], os.path.join(".mockinterview", "work", "answer.py"))
+        with open(os.path.join(env.project, begin["files"]["solution"]), encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), "def two_sum(nums, target):\n    return None\n")
+        env.write(".mockinterview/work/answer.py", GOOD_TWO_SUM)
+        out, code = env.mi("run")
+        self.assertEqual((code, out["failed"]), (0, 0), out)
+        langs, _ = env.mi("langs")
+        py2 = [x for x in langs["languages"] if x["id"] == "py2"][0]
+        self.assertEqual((py2["root"], py2["runtime"]), ("user", "here"))
+        self.assertEqual([r["available"] for r in py2["runtimes"]], [False, True])
+
+    def test_broken_language_file_is_reported_not_loaded(self):
+        self.user_language('id = "py2"\nname = "x"\nsolution = "a.go"\ndetect = ["go"]\nrun = ["{bin}"]\n'
+                           'build = ["go", "build"]\npack_stub = true\n')
+        out, _ = self.env.mi("langs")
+        self.assertEqual([x["id"] for x in out["languages"]], ["python"])
+        message = out["warnings"][0]["message"]
+        self.assertIn("'build' is not supported yet", message)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # Solution languages
 
-> **Status: planned, not implemented.** This is the agreed design for running solutions in languages other than Python. Until it lands, [runner.md](runner.md) describes what exists: Python only.
+> **Status: P1 (foundation) is implemented; JavaScript, Go and Rust are planned.** Language files, `langs`, `--lang`, the session fields, the result file and the Python dependency check exist today, with Python as the only built-in language. Fields and placeholders marked *planned* are refused by the loader until their phase lands.
 
 Other languages are for the **candidate's solution only**. The plugin itself (runner, oracles, expected values, scoring, tools) stays Python, standard library only. The one non-Python piece per language is a small **shim** that loads the solution and calls it inside the test subprocess.
 
@@ -46,41 +46,46 @@ Discovered from the same roots as packs, under `languages/`. A later root wins o
 
 ```
 <plugin>/languages/python.toml           built-in, trusted
-<plugin>/runner/shims/js_shim.js
-~/.mockinterview/languages/*.toml         user     ┐ need `mi.py trust`
+<plugin>/languages/shims/py_shim.py      shims sit beside the language files
+~/.mockinterview/languages/*.toml         user     ┐ need `mi.py trust <folder>`
 <project>/.mockinterview/languages/       project  ┘
 ```
+
+A file that does not load (bad TOML, a missing or unknown field, an unknown placeholder) is skipped and reported in the `warnings` of `mi.py langs`.
 
 | Field | Required | Example | Purpose |
 |---|---|---|---|
 | `id`, `name` | yes | `"go"`, `"Go 1.21+"` | Key and display name |
 | `solution` | yes | `"solution.go"` | The file the engineer edits, relative to `work/` |
-| `detect` | yes | `["go", "version"]` | Is the toolchain installed; its output is reported |
-| `run` | yes | `["{bin}"]` | Runs one test case |
-| `build` | no | `["go", "build", "-o", "{bin}", "."]` | Runs once per `run` |
-| `shim` | no | `"shims/js_shim.js"` | Fixed adapter (dynamic languages) |
-| `glue` | no | `"glue/go"` | Template for generated glue (typed languages) |
-| `scaffold` | no | `{ "go.mod" = "module solution\n\ngo 1.21\n" }` | Extra files written on `begin` if absent |
-| `stub_func`, `stub_ops` | yes | template text | Stubs for function and class problems |
-| `naming` | no | `"camel"` | `two_sum` → `twoSum` (`snake` by default) |
+| `detect` | yes | `["go", "version"]` | Is the toolchain installed; the first line of its output is reported as the version |
+| `run` | yes | `["{python}", "{shim}", "{solution}", "{result}"]` | Runs one test case |
+| `shim` | no | `"shims/js_shim.js"` | Fixed adapter (dynamic languages), relative to the language file |
+| `pack_stub` | no | `true` | Write the pack's `## Stub` (Python) as it is; only for Python-compatible languages |
+| `stub_func`, `stub_ops` | unless `pack_stub` | `"def {entry}({params}):\n    pass\n"` | Stubs for function and class problems |
 | `time_factor` | no | `1.5` | Multiplies timeouts and perf limits |
 | `env_pass` | no | `["GOPATH", "GOMODCACHE"]` | Extra environment variables passed through |
 | `env` | no | `{ GOPROXY = "off" }` | Variables set for build and run |
-| `runtimes` | no | `[{ id = "bun", detect = [...], run = [...] }, ...]` | Alternatives, first found wins |
-| `deps_check` | no | `"cargo"` | Which manifest check interview mode runs |
+| `runtimes` | no | `[{ id = "bun", detect = [...], run = [...] }, ...]` | Alternatives, first found wins; each replaces `detect` and `run` |
+| `deps_check` | no | `"python"` | Which check interview mode runs; `python` today, `npm`, `go` and `cargo` planned |
+| `build` | *planned* (P4) | `["go", "build", "-o", "{bin}", "."]` | Runs once per `run` |
+| `glue` | *planned* (P4) | `"glue/go"` | Template for generated glue (typed languages) |
+| `scaffold` | *planned* (P4) | `{ "go.mod" = "module solution\n\ngo 1.21\n" }` | Extra files written on `begin` if absent |
+| `naming` | *planned* (P2) | `"camel"` | `two_sum` → `twoSum` (`snake` by default) |
 
-Placeholders: `{python} {shim} {solution} {work} {build} {bin} {result} {entry} {params}`.
+Placeholders in `detect` and `run`: `{python}` (the runner's interpreter), `{shim}`, `{solution}`, `{work}`, `{result}`; *planned*: `{build}`, `{bin}`. In `stub_func` and `stub_ops`: `{entry}` (the pack's function or class) and `{params}` (the parameter names of the pack's Python stub). Other text in braces, such as a code block `{ }`, is left alone.
 
 Python becomes an ordinary language file:
 
 ```toml
-id       = "python"
-name     = "Python 3.11+"
-solution = "solution.py"
-shim     = "shims/py_shim.py"
-detect   = ["{python}", "--version"]
-run      = ["{python}", "{shim}", "{solution}", "{result}"]
-stub_func = "def {entry}({params}):\n    raise NotImplementedError\n"
+id         = "python"
+name       = "Python 3.11+"
+solution   = "solution.py"
+shim       = "shims/py_shim.py"
+pack_stub  = true                     # the pack's ## Stub section is already Python
+detect     = ["{python}", "--version"]
+run        = ["{python}", "{shim}", "{solution}", "{result}"]
+env        = { PYTHONDONTWRITEBYTECODE = "1" }
+deps_check = "python"
 ```
 
 ## Lifecycle
@@ -147,14 +152,14 @@ Today the types live only in the Python stub docstrings: about 47 packs are clea
 | Change | Detail |
 |---|---|
 | `mi.py langs` | Lists languages, the toolchain found and its version |
-| `pick`, `draw` | `--lang ID` (and `--runtime ID`); default from a new `default_language` plugin option, else `python` |
-| `session.json` | Adds `language` and `solution`; skills, the scorer and the mod read the file name from here instead of assuming `solution.py` |
+| `pick`, `draw` | `--lang ID` (and `--runtime ID`); the skills pass the `default_language` plugin option, else the runner uses `python` |
+| `session.json` | Adds `language`, `runtime` and `solution`; the skills and the mod read the file name from here instead of assuming `solution.py` |
 
 ## Phases
 
 | Phase | Scope |
 |---|---|
-| P1 Foundation | Python 3.11 floor, TOML loader, `langs`, `--lang`, session fields, result file (B), `python.toml` with no behaviour change, dependency check for Python; skills, scorer, mod and docs follow the session's solution file |
+| P1 Foundation (**done**) | Python 3.11 floor, TOML loader, `langs`, `--lang`, session fields, result file (B), `python.toml` with no behaviour change, dependency check for Python; skills, scorer, mod and docs follow the session's solution file |
 | P2 JavaScript | One shim for Bun and Node, camelCase stubs, `package.json` dependency check. All live-coding packs work: no types needed |
 | P3 Signatures | `## Signature` in every live-coding pack (converted from the docstrings by script, the loose ones by hand); lint and selftest checks; authoring.md updated |
 | P4 Go and Rust | Type mapping, generated glue, scaffold, cached builds, manifest checks, the language filter in `draw` |

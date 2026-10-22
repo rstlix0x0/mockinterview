@@ -1,6 +1,6 @@
 # Runner contract
 
-`runner/mi.py` is the single source of truth for sessions, problem selection, test running and scoring. Skills call it through the agent's Bash tool; the mod only reads the files it writes. Python 3.10 or newer, standard library only.
+`runner/mi.py` is the single source of truth for sessions, problem selection, test running and scoring. Skills call it through the agent's Bash tool; the mod only reads the files it writes. Python 3.11 or newer, standard library only. How solutions in a language are run is in [languages.md](languages.md).
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/runner/mi.py" [global options] COMMAND [options]
@@ -16,20 +16,21 @@ python3 "${CLAUDE_PLUGIN_ROOT}/runner/mi.py" [global options] COMMAND [options]
 | `--plugin-root DIR` | parent of `runner/` | Where built-in `content/` lives |
 | `--pretty` | off | Indented JSON |
 
-Every command prints **one JSON object** on stdout. Success: `{"ok": true, ...}`. Failure: `{"ok": false, "error": "message", "code": "bad_state"}`. Exit codes: `0` success, `1` user or state error, `2` internal error. `run` and `selftest` exit `1` when a test fails but still print `"ok": true` with the results.
+Every command prints **one JSON object** on stdout. Success: `{"ok": true, ...}`. Failure: `{"ok": false, "error": "message", "code": "bad_state"}`. Exit codes: `0` success, `1` user or state error, `2` internal error. `run` and `selftest` exit `1` when a test fails but still print `"ok": true` with the results. Python older than 3.11 gets `{"ok": false, "code": "python_version"}` and exit code `2`.
 
 ## Files
 
 | File | Written by | Purpose |
 |---|---|---|
 | `<project>/.mockinterview/session.json` | `mi.py` only | Current session; read by skills and by the mod |
-| `<project>/.mockinterview/work/solution.py` | `begin` (stub), then the engineer | The solution under test |
+| `<project>/.mockinterview/work/solution.py` | `begin` (stub), then the engineer | The solution under test; the name comes from the language file (`solution` in `session.json`) |
 | `<project>/.mockinterview/work/design.md` | `begin` for design problems | The written design |
 | `<project>/.mockinterview/work/estimate.json` | the engineer | Estimation claims for `estimate-check` |
 | `<project>/.mockinterview/work/PROBLEM.md` | `begin` | Engineer-facing statement; the mod's Problem tab |
 | `<project>/.mockinterview/work/archive/` | `begin` | Earlier solutions moved here, never deleted |
 | `<data>/history.jsonl` | `score`, `abandon` | One JSON line per session |
-| `<data>/trust.json` | `trust` | Acknowledged non-built-in roots |
+| `<data>/trust.json` | `trust` | Acknowledged non-built-in roots (packs and language files) |
+| `<plugin>/languages/*.toml`, `~/.mockinterview/languages/`, `<project>/.mockinterview/languages/` | you | Language files; a later root wins on the same `id` |
 
 `.mockinterview/` is created automatically by `draw` or `pick`, not at install. The runner prints a hint to add it to `.gitignore` and never edits that file.
 
@@ -45,6 +46,9 @@ Every command prints **one JSON object** on stdout. Success: `{"ok": true, ...}`
   "seed": 918273,
   "round": 0,
   "rounds_total": 3,
+  "language": "python",
+  "runtime": null,
+  "solution": ".mockinterview/work/solution.py",
   "loop": [
     {"problem": "lc-c01-lru-cache", "type": "live-coding", "time_minutes": 30,
      "title": null, "started_at": null, "finished_at": null,
@@ -62,6 +66,7 @@ Every command prints **one JSON object** on stdout. Success: `{"ok": true, ...}`
 
 - `state`: `drawn` (a round is chosen, hidden), `running` (clock on), `finished` (all rounds done, not scored), `scored`, `abandoned`.
 - In `interview` mode, `title` is `null` and the statement is withheld until `begin`. `current.title` and `PROBLEM.md` appear only after `begin`.
+- `language`, `runtime` and `solution` are chosen by `draw` or `pick` (`--lang`, `--runtime`) and hold for the whole session: the language id, the runtime used (null for a language without `runtimes`) and the work file, relative to the project. All three are null when the session has no live-coding round. A session file without them is Python with `solution.py`.
 - `current` mirrors `loop[round]` for convenience; consumers can read only `state`, `mode`, `level`, `round`, `rounds_total` and `current`.
 - `current.last_run` has the shape returned by `run` (below).
 - After `score`, `scorecard` is `{"total": 78.5, "reading": "...", "rounds": [{"problem": "...", "score": 80.0, "ratings": {"dimension": 3}, "weights": {"dimension": 15}, "penalty": 5, "evidence": {"dimension": "one line"}}], "top_gap": "..."}`.
@@ -73,11 +78,12 @@ Every command prints **one JSON object** on stdout. Success: `{"ok": true, ...}`
 |---|---|
 | `list [--type T] [--level L] [--tag X] [--search WORD] [--roots] [--verbose]` | Index of packs (`id, title, type, level, tags, time_minutes`; `--verbose` adds `source`, `root`, `path`); `--search` also looks inside knowledge documents and adds `body_hits`; with `--roots`, roots, trust status and overrides |
 | `show ID [--full]` | Prints the engineer-facing sections. `--full` (all sections, including hidden) is refused while an interview round is `drawn` or `running`; `show` itself is refused in that state. After the last round (`finished`, `scored`) or `abandon` it works again |
-| `status` | `state`, `mode`, `level`, `round` (1-based, same as `round_number`), `rounds_total`, `type`, `time_minutes`, `title` (null until `begin` in interview mode), `elapsed_seconds`, `remaining_seconds`, `over_time`, `hints_used`, `has_run` |
-| `draw --level L [--type T] [--seed N]` | Starts an interview: builds the loop, draws all rounds, stores them, state `drawn`. Output has round count and round types, **no titles** |
-| `pick ID` | Starts a practice session on one problem (engineer's choice), state `drawn` |
-| `begin` | State `running`, starts the clock, writes `PROBLEM.md`, archives any earlier `solution.py` or `design.md` into `work/archive/` (never deletes), writes the stub or design template. Output: `statement`, `title`, `limit_seconds`, `started_at`, `files`, `problem_file`. One way: no re-draw |
-| `run [--mode visible\|all] [--perf] [--fuzz N]` | Runs `work/solution.py` against the current round's tests (live-coding only) |
+| `status` | `state`, `mode`, `level`, `round` (1-based, same as `round_number`), `rounds_total`, `type`, `time_minutes`, `title` (null until `begin` in interview mode), `elapsed_seconds`, `remaining_seconds`, `over_time`, `hints_used`, `has_run`, `language`, `solution` |
+| `draw --level L [--type T] [--seed N] [--lang ID] [--runtime ID]` | Starts an interview: builds the loop, draws all rounds, stores them, state `drawn`. Output has round count and round types, **no titles**, and `language`, `runtime`, `toolchain` (the detected version) when a round is live coding |
+| `pick ID [--replace] [--lang ID] [--runtime ID]` | Starts a practice session on one problem (engineer's choice), state `drawn`. Same language fields as `draw` for a live-coding problem |
+| `langs` | Lists the language files: `id`, `name`, `solution`, `root`, `path`, `trusted`, `available`, `version`, and `runtimes` (each with `available` and `version`) when the language has them; broken files in `warnings` |
+| `begin` | State `running`, starts the clock, writes `PROBLEM.md`, archives any earlier solution file or `design.md` into `work/archive/` (never deletes), writes the stub (the pack's `## Stub`, or the language file's template) or design template. Output: `statement`, `title`, `limit_seconds`, `started_at`, `files`, `problem_file`. One way: no re-draw |
+| `run [--mode visible\|all] [--perf] [--fuzz N]` | Runs the session's solution file against the current round's tests (live-coding only). In interview mode it first refuses imports outside the standard library: `dependencies_not_allowed`, with `found` |
 | `hint` | Returns the next ladder rung from the notes and records its cost. Interview mode counts it; it never skips a rung. Output: `rung`, `cost`, `text`, `penalty_total`, `rungs_left` |
 | `notes [--section clarify\|followups\|traps\|reference\|all] [--problem ID]` | The interviewer's route to hidden notes for the current round (or a finished round of this session with `--problem`). `reference` also returns the oracle for live-coding problems. Hint and probe ladders are never returned here; use `hint`. Refused before `begin` in interview mode |
 | `finish` | Stops the round, stores the result. More rounds: state `drawn`, `round` advances. Last round: state `finished` |
@@ -90,6 +96,16 @@ Every command prints **one JSON object** on stdout. Success: `{"ok": true, ...}`
 | `trust ROOT` | Acknowledges a non-built-in root |
 | `estimate-check` | Design problems: checks `work/estimate.json` against the pack's reference estimate |
 | `design-lint` | Design problems: structure check of `work/design.md` |
+
+Language errors (exit `1`):
+
+| `code` | When |
+|---|---|
+| `unknown_language` | No language file has that id; `error` lists the ids there are |
+| `unknown_runtime` | The language has no runtime with that id |
+| `toolchain_missing` | The language's `detect` command failed, or its `run` command could not be started |
+| `untrusted` | The language file is outside the built-in root and its folder is not trusted; `root` names it |
+| `dependencies_not_allowed` | Interview mode, `run`: the solution imports something outside the standard library; `found` lists it |
 
 ## run result
 

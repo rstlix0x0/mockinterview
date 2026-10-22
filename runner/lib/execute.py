@@ -1,7 +1,8 @@
 """Run a solution file against a pack's tests. Standard library only.
 
-Each case runs in its own Python subprocess (argv list, no shell) with a wall-clock timeout and, on POSIX,
-CPU and address-space limits. Expected values come from the pack's oracle, which runs inside this process
+Each case runs in its own subprocess, started from the language file's `run` command (argv list, no shell),
+with a wall-clock timeout and, on POSIX, CPU and address-space limits. The shim writes the value to a result
+file, so the solution's own stdout and stderr never get in the way. Expected values come from the pack's oracle, which runs inside this process
 (the oracle is trusted pack code; see Pack trust in docs/authoring.md).
 """
 import bisect
@@ -20,6 +21,7 @@ import time
 from collections import Counter, OrderedDict, defaultdict, deque
 from fractions import Fraction
 
+from . import languages
 from .util import MiError, atomic_write, short
 
 try:  # POSIX only
@@ -102,34 +104,43 @@ def _limits(timeout):
     return apply
 
 
-def run_case(ctx, pyfile, suite, args, timeout):
+def run_case(ctx, lang, solution, suite, args, timeout):
     """Return (ok, value, error text, seconds)."""
     req = {"function": suite["function"]}
     req.update(args if suite["kind"] == "ops" else {"args": args})
-    shim = os.path.join(ctx.runner_dir, "tools", "py_shim.py")
-    env = {k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "LANG", "LC_ALL", "SYSTEMROOT", "TMPDIR")}
-    env["PYTHONDONTWRITEBYTECODE"] = "1"
     kwargs = {}
     if os.name == "posix" and getattr(ctx, "limits", True):
         kwargs["preexec_fn"] = _limits(timeout)
-    t0 = time.perf_counter()
+    work = os.path.dirname(solution)
+    with tempfile.TemporaryDirectory(prefix="mi-case-") as tmp:
+        result = os.path.join(tmp, "result.json")
+        argv = lang.argv(lang.run_argv, solution=solution, result=result, work=work)
+        t0 = time.perf_counter()
+        try:
+            p = subprocess.run(argv, input=json.dumps(req), capture_output=True, text=True, timeout=timeout,
+                               env=lang.environment(), cwd=work or None, **kwargs)
+        except subprocess.TimeoutExpired:
+            return False, None, "TIMEOUT after %.1fs" % timeout, time.perf_counter() - t0
+        except OSError as exc:
+            raise MiError("cannot start %s: %s" % (argv[0], exc), code="toolchain_missing", language=lang.id)
+        dt = time.perf_counter() - t0
+        if p.returncode != 0:
+            return False, None, "exit code %d: %s" % (p.returncode, (p.stderr or p.stdout).strip()[-400:]), dt
+        try:
+            with open(result, encoding="utf-8") as fh:
+                text = fh.read()
+        except FileNotFoundError:
+            return False, None, "no result was written (exit code 0)", dt
     try:
-        p = subprocess.run([sys.executable, shim, pyfile], input=json.dumps(req), capture_output=True,
-                           text=True, timeout=timeout, env=env, cwd=os.path.dirname(pyfile) or None, **kwargs)
-    except subprocess.TimeoutExpired:
-        return False, None, "TIMEOUT after %.1fs" % timeout, time.perf_counter() - t0
-    dt = time.perf_counter() - t0
-    if p.returncode != 0:
-        return False, None, "exit code %d: %s" % (p.returncode, (p.stderr or p.stdout).strip()[-400:]), dt
-    try:
-        return True, json.loads(p.stdout), "", dt
+        return True, json.loads(text), "", dt
     except ValueError:
-        return False, None, "stdout is not valid JSON: %r" % p.stdout[:200], dt
+        return False, None, "the result is not valid JSON: %r" % text[:200], dt
 
 
-def run_suite(ctx, pack, pyfile, mode="all", perf=False, fuzz=None, seed=10000, factor=1.0,
+def run_suite(ctx, pack, lang, solution, mode="all", perf=False, fuzz=None, seed=10000, factor=1.0,
               timeout=CASE_TIMEOUT, interview=False):
     """Run the tests of one live-coding pack. Returns the `run` result dict."""
+    factor *= lang.time_factor
     suite = pack.suite()
     ns = load_oracle(pack)
     cmode = suite.get("compare", "exact")
@@ -152,7 +163,7 @@ def run_suite(ctx, pack, pyfile, mode="all", perf=False, fuzz=None, seed=10000, 
         if tag not in wanted:
             continue
         expected = oracle_expected(ns, suite, case["args"])
-        ok, got, err, _dt = run_case(ctx, pyfile, suite, case["args"], timeout * factor)
+        ok, got, err, _dt = run_case(ctx, lang, solution, suite, case["args"], timeout * factor)
         good = ok and same(expected, got, cmode)
         s = stats.setdefault(tag, [0, 0])
         s[1] += 1
@@ -166,7 +177,7 @@ def run_suite(ctx, pack, pyfile, mode="all", perf=False, fuzz=None, seed=10000, 
         for sd in range(seed, seed + n_fuzz):
             args = ns["gen_random"](sd)
             expected = oracle_expected(ns, suite, args)
-            ok, got, err, _dt = run_case(ctx, pyfile, suite, args, timeout * factor)
+            ok, got, err, _dt = run_case(ctx, lang, solution, suite, args, timeout * factor)
             good = ok and same(expected, got, cmode)
             s[1] += 1
             s[0] += 1 if good else 0
@@ -175,7 +186,7 @@ def run_suite(ctx, pack, pyfile, mode="all", perf=False, fuzz=None, seed=10000, 
                 break
 
     if perf and mode != "visible" and suite.get("perf"):
-        perf_info = _run_perf(ctx, pack, pyfile, suite, ns, cmode, factor, timeout)
+        perf_info = _run_perf(ctx, pack, lang, solution, suite, ns, cmode, factor, timeout)
         s = stats.setdefault("perf", [0, 0])
         s[1] += 1
         s[0] += 1 if perf_info["ok"] else 0
@@ -192,11 +203,11 @@ def run_suite(ctx, pack, pyfile, mode="all", perf=False, fuzz=None, seed=10000, 
     }
 
 
-def _run_perf(ctx, pack, pyfile, suite, ns, cmode, factor, timeout):
+def _run_perf(ctx, pack, lang, solution, suite, ns, cmode, factor, timeout):
     p = suite["perf"]
     os.makedirs(ctx.perf_cache, exist_ok=True)
     base_args = suite["cases"][0]["args"]
-    base = min(run_case(ctx, pyfile, suite, base_args, timeout * factor)[3] for _ in range(3))
+    base = min(run_case(ctx, lang, solution, suite, base_args, timeout * factor)[3] for _ in range(3))
     times, lines, perf_ok = [], [], True
     for n in p["sizes"]:
         cache = os.path.join(ctx.perf_cache, "%s_%d.json" % (pack.id, n))
@@ -217,7 +228,7 @@ def _run_perf(ctx, pack, pyfile, suite, ns, cmode, factor, timeout):
             except OSError:
                 pass
         limit = p["limit_ms"] / 1000.0 * factor
-        ok, got, err, dt = run_case(ctx, pyfile, suite, args, limit + base + 5)
+        ok, got, err, dt = run_case(ctx, lang, solution, suite, args, limit + base + 5)
         net = max(dt - base, 0.0)
         good = ok and same(exp, got, cmode)
         times.append(net)
@@ -262,4 +273,5 @@ def selftest_pack(ctx, pack, fuzz=None, perf=False, factor=1.0):
         path = os.path.join(tmp, "solution.py")
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(body)
-        return run_suite(ctx, pack, path, mode="all", perf=perf, fuzz=fuzz, factor=factor)
+        python = languages.get(ctx, "python", builtin_only=True)
+        return run_suite(ctx, pack, python, path, mode="all", perf=perf, fuzz=fuzz, factor=factor)

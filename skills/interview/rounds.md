@@ -32,7 +32,7 @@ You never read pack files. Do not open, grep, glob or `cat` anything under the p
 
 ## Live-coding round
 
-Work file: `.mockinterview/work/solution.py`. The engineer edits it in their own editor. You may read it at any time; you never edit it and never write solution code, not even partial code and not inside a hint.
+Work file: the `solution` path in `.mockinterview/session.json` (for example `.mockinterview/work/solution.py`; the extension follows the session's `language`). The engineer edits it in their own editor. You may read it at any time; you never edit it and never write solution code, not even partial code and not inside a hint.
 
 | Phase | What you do |
 |---|---|

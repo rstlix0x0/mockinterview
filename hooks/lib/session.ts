@@ -54,6 +54,9 @@ export type Session = {
   state: string
   round: number
   roundsTotal: number
+  /** Solution language id and work file; null for design-only sessions and older session files. */
+  language: string | null
+  solution: string | null
   current: Current | null
   scorecard: Scorecard | null
 }
@@ -179,6 +182,8 @@ export function parseSession(text: string | null | undefined): Session | null {
     state,
     round: num(raw.round) ?? 0,
     roundsTotal: num(raw.rounds_total) ?? loop.length,
+    language: str(raw.language),
+    solution: str(raw.solution),
     current: parseCurrent(raw.current),
     scorecard: parseScorecard(raw.scorecard),
   }

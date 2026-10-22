@@ -72,7 +72,7 @@ Run `lint PATH` with the path of the new file. Fix every error, then run it agai
 1. A pack outside the built-in root is untrusted until acknowledged. Explain in two sentences: "the oracle is Python that runs on your machine; you wrote it with me, so you can trust it, but a teammate's pack deserves a read first." Ask, then run `trust ROOT` with the root you chose.
 2. Run `selftest ID`. It runs the oracle against its own tests. If something fails: a failing visible case usually means a wrong example in the statement; a failing hidden case usually means a wrong test; fix the pack, not the runner. Run it again until it ends with every case passing.
 3. If the pack has a `perf` block, run `selftest ID --perf` once and check that the limits are realistic for a plain Python solution.
-4. Optional but valuable: write a deliberately naive solution (the brute force) into `.mockinterview/work/solution.py` via `/mockinterview:practice` and confirm the right tests fail it: that proves the tests catch what they claim to catch.
+4. Optional but valuable: write a deliberately naive solution (the brute force) into the work file (`.mockinterview/work/solution.py` for Python) via `/mockinterview:practice` and confirm the right tests fail it: that proves the tests catch what they claim to catch.
 
 ## Step 5: finish
 

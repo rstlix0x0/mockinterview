@@ -19,8 +19,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/runner/mi.py" --data "${CLAUDE_PLUGIN_DATA}" COMM
 
 - Extra pack folder from the plugin options: `${user_config.packs_dir}`. If that is a real absolute path, add `--root "<that path>"` to every call. If it is empty or still looks like a placeholder, leave `--root` out.
 - The runner works in the current project folder. Session files are in `.mockinterview/`.
+- Solution language: if the engineer names one (for example "in JavaScript"), use its id; else use the plugin option `${user_config.default_language}` when it is a real id (not empty, not a placeholder); else leave `--lang` out (Python). Pass it as `--lang ID` to `pick`. If the runner answers `unknown_language` or `toolchain_missing`, say so in one sentence and offer `langs`, which lists the languages and whether each toolchain is installed.
 - Every command prints one JSON object. Parse it. If `ok` is false, read `error` and `code`, say in one plain sentence what is wrong, and fix the cause. Never retry the same call blindly.
-- Commands you use: `status`, `list`, `pick`, `begin`, `run`, `hint`, `notes`, `estimate-check`, `design-lint`, `finish`, `score`, `abandon`, `show`, `repeat`.
+- Commands you use: `status`, `langs`, `list`, `pick`, `begin`, `run`, `hint`, `notes`, `estimate-check`, `design-lint`, `finish`, `score`, `abandon`, `show`, `repeat`.
 
 ## Step 0: unfinished session?
 
@@ -31,13 +32,13 @@ Run `status`. If it reports a session whose `state` is `drawn`, `running` or `fi
 1. If `$ARGUMENTS` is a problem id, check it with `list` (filter by `--type` if needed) and use it.
 2. Otherwise ask what they want: a type (live coding or system design), a level, a topic or tag. Run `list --type T --level L --tag X` (drop the filters they did not give) and show a compact table: `id`, `title`, `level`, `time_minutes`. Keep it to about ten rows; offer to narrow it. Knowledge packs (`type: knowledge`) are for `/mockinterview:teach`, not here.
 3. If they do not know what to pick, run `history --last 10` and suggest the problems for their weakest tags, or a problem they have not done yet.
-4. Run `pick ID`. If it says the pack is untrusted, tell the engineer what that means (the pack runs Python on their machine, see `docs/authoring.md`), and only run `trust ROOT` with their yes.
+4. Run `pick ID`, with `--lang ID` as described above for a live-coding problem. If it says the pack is untrusted, tell the engineer what that means (the pack runs Python on their machine, see `docs/authoring.md`), and only run `trust ROOT` with their yes.
 
 ## Step 2: begin
 
 1. Tell them the time suggestion and the work file, then run `begin` when they say they are ready (a casual "ok, start" is enough). Practice has a clock too, but it is a guide, not a limit: if it runs out, say so and let them continue.
 2. Read `${CLAUDE_PLUGIN_ROOT}/skills/interview/rounds.md` now, in full, and follow it in **practice** mode (the first table in that file lists what changes).
-3. Show the statement from the `begin` output (`statement`, or `.mockinterview/work/PROBLEM.md`) exactly as it is. The work file is `.mockinterview/work/solution.py` or `.mockinterview/work/design.md`.
+3. Show the statement from the `begin` output (`statement`, or `.mockinterview/work/PROBLEM.md`) exactly as it is. The work file is `files.solution` from the `begin` output (for example `.mockinterview/work/solution.py`) or `.mockinterview/work/design.md`.
 
 ## Step 3: being a good partner
 
@@ -60,7 +61,7 @@ Run `status`. If it reports a session whose `state` is `drawn`, `running` or `fi
 | Command | Fields you read |
 |---|---|
 | `list` | entries with `id`, `title`, `type`, `level`, `tags`, `time_minutes` |
-| `pick`, `begin` | `ok`, `statement`, `limit_seconds` |
+| `pick`, `begin` | `ok`, `statement`, `limit_seconds`, `files.solution` |
 | `run` | `passed`, `failed`, `total`, `by_category`, `perf.lines`, `failures[]` (`name`, `category`, `args`, `expected`, `got`) |
 | `hint` | `rung`, `cost`, `text` |
 | `notes` | `text` |

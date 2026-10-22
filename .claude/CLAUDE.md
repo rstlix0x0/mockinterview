@@ -8,7 +8,7 @@ A Claude Code **plugin** (`mockinterview`) for practising software-engineering i
 
 ## Commands
 
-All run from the repository root. The runner is Python 3.10+, standard library only (no install step).
+All run from the repository root. The runner is Python 3.11+ (for `tomllib`), standard library only (no install step).
 
 ```bash
 python3 -m unittest discover -s tests -v                      # runner tests
@@ -21,7 +21,7 @@ claude plugin validate                                        # manifest + layou
 claude plugin test .                                          # mod tests (tests/mod/*.test.ts)
 ```
 
-`mi.py` refuses Python < 3.10 (`code: python_version`), and the tests then fail on every call. If the `python3` on PATH is older, use e.g. `uv run --no-project --python 3.12 python -m unittest discover -s tests`. The tests launch `mi.py` with the same interpreter that runs them.
+`mi.py` refuses Python < 3.11 (`code: python_version`), and the tests then fail on every call. If the `python3` on PATH is older, use e.g. `uv run --no-project --python 3.12 python -m unittest discover -s tests`. The tests launch `mi.py` with the same interpreter that runs them.
 
 Set `MI_DEBUG=1` to get a traceback in the JSON output on internal errors. Load the plugin live with `claude --plugin-dir .` and `/reload-plugins` while iterating.
 
@@ -29,17 +29,19 @@ Set `MI_DEBUG=1` to get a traceback in the JSON output on internal errors. Load 
 
 ```
 skills/*/SKILL.md ──Bash──▶ runner/mi.py ──writes──▶ <project>/.mockinterview/session.json
-agents/scorer.md  ──Bash──▶   (notes only)          <project>/.mockinterview/work/{solution.py,design.md,PROBLEM.md}
+agents/scorer.md  ──Bash──▶   (notes only)          <project>/.mockinterview/work/{solution file,design.md,PROBLEM.md}
                               │ reads                <data>/history.jsonl, trust.json
                               ▼
                     content/ + user/project/option pack roots
+                    languages/*.toml + user/project language roots
 hooks/register.tsx (mod) ──reads only──▶ session.json, work/PROBLEM.md
 ```
 
 - **The runner is the single source of truth.** Only `mi.py` writes `session.json`. Skills call it through Bash with the prefix `python3 "${CLAUDE_PLUGIN_ROOT}/runner/mi.py" --data "${CLAUDE_PLUGIN_DATA}" ...`. The mod never writes, never runs the runner and registers no tools (`$.process` is CLI only), so the plugin must keep working with the mod absent.
 - **Runner contract** (`docs/runner.md`): every command prints exactly one JSON object (`{"ok": true, ...}` / `{"ok": false, "error", "code"}`); exit 0 ok, 1 user/state error or failing test, 2 internal. Changing output shape affects the skills, the scorer agent and the mod's parser (`hooks/lib/session.ts`) — keep them in sync.
-- **Runner layout**: `mi.py` is argparse only; command implementations live in `runner/lib/commands.py`; pack parsing/discovery/trust in `packs.py`; selection in `draw.py`; test execution in `execute.py`; scoring maths in `score.py`; `tools/` holds standalone scripts (`py_shim.py`, `designlint.py`, `estimate.py`, `sim_*.py`).
-- **Execution model**: each test case runs `tools/py_shim.py` in its own subprocess (argv list, no shell, timeout, POSIX rlimits). Expected values are *never stored* in packs; the pack's oracle computes them in-process (oracle = trusted code, hence the `trust` gate for non-built-in roots).
+- **Runner layout**: `mi.py` is argparse only; command implementations live in `runner/lib/commands.py`; pack parsing/discovery/trust in `packs.py`; language files in `languages.py`; the interview-mode import check in `deps.py`; selection in `draw.py`; test execution in `execute.py`; scoring maths in `score.py`; `tools/` holds standalone scripts (`designlint.py`, `estimate.py`, `sim_*.py`).
+- **Languages** (`docs/languages.md`): the candidate's solution language is a TOML file in `languages/` (built-in `python.toml`, shims in `languages/shims/`), chosen by `draw`/`pick --lang` and stored as `language`/`runtime`/`solution` in `session.json`. Everything else (oracles, scoring, tools) stays Python. P1 is done; JavaScript, signatures, Go and Rust are planned phases.
+- **Execution model**: each test case runs the language's `run` command (for Python, `languages/shims/py_shim.py`) in its own subprocess (argv list, no shell, timeout, POSIX rlimits); the shim writes the value to a result file, so `print()` in a solution is harmless. Expected values are *never stored* in packs; the pack's oracle computes them in-process (oracle = trusted code, hence the `trust` gate for non-built-in roots).
 - **Session state machine**: `drawn → running → (drawn for next round | finished) → scored`, or `abandoned`. In interview mode, titles/statements are withheld until `begin`, and `show`, `show --full` and `notes` are refused accordingly; hidden material reaches the interviewer only via `notes` and `hint`.
 - **Scoring**: `implementation` is computed from the last `run`; all other dimensions come from the scorer subagent's ratings JSON passed to `mi.py score`. Dimension keys and weights are fixed (see `docs/runner.md`).
 - **Mod** (`hooks/`): `register.tsx` polls the session file and renders panes; `lib/guard.ts` denies reads of pack files during an active interview round (friction, not security); `lib/format.ts` builds pane blocks; `lib/library.ts` backs the Library tab (a TS port of the runner's frontmatter parser — keep it in step with `parse_frontmatter` in `runner/lib/packs.py`). Library buttons only `$.prompt.fill` a skill command. Tests use `claude-code/testing`. `claude plugin validate` requires `$` to flow only into top-level functions of the module.

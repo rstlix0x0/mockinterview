@@ -1,0 +1,10 @@
+# Python solutions run on the runner's own interpreter. Format: docs/languages.md.
+id         = "python"
+name       = "Python 3.11+"
+solution   = "solution.py"
+shim       = "shims/py_shim.py"
+pack_stub  = true                     # the pack's ## Stub section is already Python
+detect     = ["{python}", "--version"]
+run        = ["{python}", "{shim}", "{solution}", "{result}"]
+env        = { PYTHONDONTWRITEBYTECODE = "1" }
+deps_check = "python"

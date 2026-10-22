@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Process-protocol shim for Python solutions.   usage: py_shim.py path/to/solution.py
+"""Process-protocol shim for Python solutions.   usage: py_shim.py path/to/solution.py path/to/result.json
 stdin : {"function": "name", "args": {...}}  or  {"function": "ClassName", "calls": [[name, [args]], ...]}
-stdout: the JSON result. For class problems the result is the list of return values (null for the constructor)."""
+result: the JSON value, written to the result file. For class problems it is the list of return values (null
+        for the constructor). stdout and stderr stay the solution's, so print() debugging is harmless."""
 import importlib.util
 import json
 import sys
 
 
 def main():
-    path = sys.argv[1]
+    path, result = sys.argv[1], sys.argv[2]
     spec = importlib.util.spec_from_file_location("solution", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -24,7 +25,9 @@ def main():
                 out.append(getattr(obj, name)(*args))
     else:
         out = target(**req["args"])
-    json.dump(out, sys.stdout)
+    text = json.dumps(out)  # fails before the file is touched if the value is not JSON
+    with open(result, "w", encoding="utf-8") as fh:
+        fh.write(text)
 
 
 if __name__ == "__main__":

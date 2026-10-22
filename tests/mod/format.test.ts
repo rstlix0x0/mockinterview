@@ -45,6 +45,13 @@ test('Problem tab: no session', async () => {
   expect(scorecardBlocks(null)[0]?.text).toBe(NO_SESSION)
 })
 
+test('header names the solution language when the session has one', async () => {
+  expect(problemBlocks(session({ language: 'python' }), null)[0]?.text).toBe(
+    'interview, senior, round 1 of 2, running, python',
+  )
+  expect(problemBlocks(session(), null)[0]?.text).toBe('interview, senior, round 1 of 2, running')
+})
+
 test('Problem tab: interview round before go shows only round and level', async () => {
   const s = session({ state: 'drawn' }, { title: 'LRU Cache' })
   const all = texts(problemBlocks(s, '# LRU Cache\nSECRET STATEMENT'))

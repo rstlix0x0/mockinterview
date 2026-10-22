@@ -26,6 +26,12 @@
       "options": ["ask", "junior", "mid", "senior", "staff"],
       "default": "ask"
     },
+    "default_language": {
+      "type": "string",
+      "title": "Default solution language",
+      "description": "Language id for live-coding solutions, used when you do not name one. Built in: python. Your own language files are listed by mi.py langs.",
+      "default": "python"
+    },
     "packs_dir": {
       "type": "directory",
       "title": "Extra packs folder",

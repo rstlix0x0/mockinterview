@@ -11,7 +11,7 @@ import tempfile
 from concurrent.futures import ThreadPoolExecutor
 
 from . import draw as drawmod
-from . import execute, packs, score as scoremod, session as sess
+from . import deps, execute, languages, packs, score as scoremod, session as sess
 from .packs import LEVELS, PackError
 from .util import MiError, atomic_write, iso, now_utc, parse_iso, read_json
 
@@ -67,6 +67,30 @@ def _guard_new_session(ctx, existing, replace=False):
                           "and there is no re-draw)" % (existing.get("mode"), state), code="session_active")
     elif state == "finished" and not replace:
         raise MiError("the last session is finished but not scored; run score, or abandon", code="unscored")
+
+
+def _choose_language(ctx, a, needed):
+    """Session fields for the solution language, checked now so a missing toolchain fails before the clock."""
+    if not needed:
+        return {"language": None, "runtime": None, "solution": None}, None
+    lang = languages.get(ctx, a.lang)
+    version = lang.select(a.runtime)
+    return {"language": lang.id, "runtime": lang.runtime,
+            "solution": _rel(ctx, os.path.join(ctx.work_dir, lang.solution))}, version
+
+
+def _session_language(ctx, session):
+    """The session's language with its stored runtime. Sessions from before languages existed are Python."""
+    lang = languages.get(ctx, session.get("language") or languages.DEFAULT)
+    lang.use(session.get("runtime"))
+    return lang
+
+
+def _language_out(fields, version):
+    out = {k: v for k, v in fields.items() if v is not None}
+    if version:
+        out["toolchain"] = version
+    return out
 
 
 # ------------------------------------------------------------- list, show, status
@@ -131,7 +155,8 @@ def cmd_status(ctx, a):
            "level": session.get("level"), "round": session["round"] + 1, "round_number": session["round"] + 1,
            "rounds_total": session["rounds_total"], "type": rnd["type"], "time_minutes": rnd["time_minutes"],
            "title": rnd.get("title"), "started_at": rnd.get("started_at"),
-           "hints_used": rnd.get("hints_used", []), "has_run": rnd.get("last_run") is not None}
+           "hints_used": rnd.get("hints_used", []), "has_run": rnd.get("last_run") is not None,
+           "language": session.get("language"), "solution": session.get("solution")}
     out.update(sess.timing(rnd))
     return out
 
@@ -168,9 +193,10 @@ def cmd_draw(ctx, a):
                       code="empty_pool")
     if skipped:
         warnings.append("skipped %d invalid or untrusted pack(s), for example: %s" % (len(skipped), skipped[0]))
+    lang_fields, version = _choose_language(ctx, a, any(p.type == "live-coding" for p in chosen))
     session = {
         "schema": sess.SCHEMA, "session_id": sess.new_session_id(), "mode": "interview", "level": a.level,
-        "state": "drawn", "seed": seed, "round": 0, "rounds_total": len(chosen),
+        "state": "drawn", "seed": seed, "round": 0, "rounds_total": len(chosen), **lang_fields,
         "loop": [_new_round(p, reveal_title=False) for p in chosen], "current": None, "scorecard": None,
         "created_at": iso(now_utc()),
     }
@@ -179,7 +205,8 @@ def cmd_draw(ctx, a):
     out = {"ok": True, "session_id": session["session_id"], "mode": "interview", "level": a.level,
            "seed": seed, "rounds_total": len(chosen),
            "rounds": [{"round": i + 1, "type": r["type"], "time_minutes": r["time_minutes"]}
-                      for i, r in enumerate(session["loop"])], "state": "drawn"}
+                      for i, r in enumerate(session["loop"])], "state": "drawn",
+           **_language_out(lang_fields, version)}
     if warnings:
         out["warnings"] = warnings
     hint = sess.gitignore_hint(ctx)
@@ -193,16 +220,18 @@ def cmd_pick(ctx, a):
     index = packs.build_index(ctx)
     pack = _get_pack(index, a.id)
     _runnable(ctx, pack)
+    lang_fields, version = _choose_language(ctx, a, pack.type == "live-coding")
     session = {
         "schema": sess.SCHEMA, "session_id": sess.new_session_id(), "mode": "practice", "level": None,
-        "state": "drawn", "seed": None, "round": 0, "rounds_total": 1,
+        "state": "drawn", "seed": None, "round": 0, "rounds_total": 1, **lang_fields,
         "loop": [_new_round(pack, reveal_title=True)], "current": None, "scorecard": None,
         "created_at": iso(now_utc()),
     }
     os.makedirs(ctx.mi_dir, exist_ok=True)
     sess.save(ctx, session)
     out = {"ok": True, "session_id": session["session_id"], "mode": "practice", "problem": pack.id,
-           "title": pack.title, "type": pack.type, "time_minutes": pack.time_minutes, "state": "drawn"}
+           "title": pack.title, "type": pack.type, "time_minutes": pack.time_minutes, "state": "drawn",
+           **_language_out(lang_fields, version)}
     hint = sess.gitignore_hint(ctx)
     if hint:
         out["hint"] = hint
@@ -241,8 +270,9 @@ def cmd_begin(ctx, a):
     session["state"] = "running"
     files, archived = {}, None
     if pack.type == "live-coding":
-        target = os.path.join(ctx.work_dir, "solution.py")
-        archived = _archive_and_write(ctx, target, pack.stub() or "")
+        lang = _session_language(ctx, session)
+        target = os.path.join(ctx.work_dir, lang.solution)
+        archived = _archive_and_write(ctx, target, lang.stub(pack))
         files["solution"] = _rel(ctx, target)
         work_note = ("Work file: `%s`. Edit it in your own editor. When you are ready, ask the interviewer "
                      "to run your tests." % files["solution"])
@@ -278,14 +308,21 @@ def cmd_run(ctx, a):
     if rnd["type"] != "live-coding":
         raise MiError("run is for live-coding problems; use estimate-check or design-lint for design problems",
                       code="bad_type")
-    pyfile = os.path.join(ctx.work_dir, "solution.py")
-    if not os.path.exists(pyfile):
-        raise MiError("no solution file at %s" % _rel(ctx, pyfile), code="no_solution")
+    lang = _session_language(ctx, session)
+    solution = os.path.join(ctx.work_dir, lang.solution)
+    if not os.path.exists(solution):
+        raise MiError("no solution file at %s" % _rel(ctx, solution), code="no_solution")
+    interview = session["mode"] == "interview"
+    if interview and lang.deps_check:
+        found = deps.check(lang.deps_check, solution)
+        if found:
+            raise MiError("interview rounds use the standard library only: found %s"
+                          % ", ".join("'%s'" % n for n in found), code="dependencies_not_allowed", found=found)
     index = packs.build_index(ctx)
     pack = _get_pack(index, rnd["problem"])
     _runnable(ctx, pack)
-    result = execute.run_suite(ctx, pack, pyfile, mode=a.mode, perf=a.perf, fuzz=a.fuzz, seed=a.seed,
-                               factor=a.factor, timeout=a.timeout, interview=session["mode"] == "interview")
+    result = execute.run_suite(ctx, pack, lang, solution, mode=a.mode, perf=a.perf, fuzz=a.fuzz, seed=a.seed,
+                               factor=a.factor, timeout=a.timeout, interview=interview)
     result["ok"] = True
     result["mode"] = a.mode
     result["pass"] = result["failed"] == 0
@@ -613,6 +650,29 @@ def cmd_selftest(ctx, a):
     return {"ok": True, "checked": len(results), "failed": len(failed), "pass": not failed,
             "results": results if (failed or len(results) <= 5 or a.verbose) else
             [{"id": r["id"], "pass": r.get("pass"), "skipped": r.get("skipped")} for r in results]}
+
+
+def cmd_langs(ctx, a):
+    cat = languages.load_catalog(ctx)
+    items = []
+    for lang in sorted(cat.languages.values(), key=lambda x: x.id):
+        item = lang.summary()
+        item["trusted"] = packs.is_trusted(ctx, lang.root_label, lang.root)
+        found = lang.probe()
+        if lang.runtimes:
+            item["runtimes"] = found
+            first = next((r for r in found if r["available"]), None)
+            item.update(available=first is not None, runtime=first["id"] if first else None,
+                        version=first["version"] if first else None)
+        else:
+            item.update(available=found[0]["available"], version=found[0]["version"])
+        items.append(item)
+    out = {"ok": True, "default": languages.DEFAULT, "languages": items}
+    if cat.warnings:
+        out["warnings"] = cat.warnings
+    if cat.overrides:
+        out["overrides"] = cat.overrides
+    return out
 
 
 def cmd_trust(ctx, a):
