@@ -5,10 +5,8 @@ type: live-coding
 level: [junior]
 tags: [strings, two-pointers]
 time_minutes: 10
-languages: [python]
 entry: is_palindrome
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: A11
@@ -32,14 +30,6 @@ Return `true` if `s` reads the same forwards and backwards when you keep only AS
 - **Example 2** - input: `{"s":"race a car"}`  
   output: `false`
 
-## Stub
-
-```python
-def is_palindrome(s):
-    """is_palindrome(s: string) -> bool"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -49,39 +39,31 @@ is_palindrome(s: string) -> bool
 ## Tests
 
 ```json tests
-{"function":"is_palindrome","kind":"func","compare":"exact","fuzz":20,"perf":{"sizes":[100000,500000,1000000],"limit_ms":3000,"max_exponent":1.4},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"s":"A man, a plan, a canal: Panama"}},
-{"name":"example-2","tags":["visible"],"args":{"s":"race a car"}},
-{"name":"edge-empty","tags":["edge"],"args":{"s":""}},
-{"name":"edge-only-punctuation","tags":["edge"],"args":{"s":".,! ?"}},
-{"name":"hidden-digits-and-letters","tags":["hidden"],"args":{"s":"0P"}},
-{"name":"hidden-single","tags":["hidden"],"args":{"s":"a"}}
+{"function":"is_palindrome","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"s":"A man, a plan, a canal: Panama"},"expected":true},
+{"name":"example-2","tags":["visible"],"args":{"s":"race a car"},"expected":false},
+{"name":"edge-empty","tags":["edge"],"args":{"s":""},"expected":true},
+{"name":"edge-only-punctuation","tags":["edge"],"args":{"s":".,! ?"},"expected":true},
+{"name":"hidden-digits-and-letters","tags":["hidden"],"args":{"s":"0P"},"expected":false},
+{"name":"hidden-single","tags":["hidden"],"args":{"s":"a"},"expected":true},
+{"name":"random-1","tags":["hidden"],"args":{"s":"1abaaba1"},"expected":true},
+{"name":"random-2","tags":["hidden"],"args":{"s":"bb?bb"},"expected":true},
+{"name":"random-3","tags":["hidden"],"args":{"s":"Bba abB"},"expected":true},
+{"name":"random-4","tags":["hidden"],"args":{"s":"Ba,A,, ,,A,aB"},"expected":true}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 def solve(s):
     keep = [c.lower() for c in s if c in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"]
     return keep == keep[::-1]
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    half = ''.join(rnd.choice("abAB1 ,.") for _ in range(rnd.randint(0, 6)))
-    mid = rnd.choice(["", "x", " ", "?"])
-    s = half + mid + (half[::-1] if rnd.random() < 0.6 else ''.join(rnd.choice("abAB1 ,.") for _ in range(len(half))))
-    return {"s": s}
-
-def gen_perf(n):
-    half = "ab" * (n // 2)
-    return {"s": half + half[::-1]}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(n) time, O(1) extra space with two pointers
-- **Scaling check:** sizes [100000, 500000, 1000000], limit 3000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.4
 - **Clarifying questions (answer verbatim):**
   - Q: Non-ASCII letters?  
     A: They are ignored like punctuation.

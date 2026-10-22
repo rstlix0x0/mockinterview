@@ -422,7 +422,6 @@ test('Results pane, on every surface', async ($, on) => {
           failed: 1,
           total: 4,
           by_category: { visible: '2/3', hidden: '1/1' },
-          perf: { ran: false, ok: true, lines: [] },
           failures: [{ name: 'example-2', category: 'visible', shown: true, args: '[3]', expected: '1', got: '2' }],
         },
       },

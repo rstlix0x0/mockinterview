@@ -5,10 +5,8 @@ type: live-coding
 level: [senior, staff]
 tags: [design, state, stack]
 time_minutes: 40
-languages: [python]
 entry: TransactionalKV
 kind: ops
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: C2
@@ -41,39 +39,6 @@ Reads inside a transaction see that transaction's uncommitted writes.
 - **Example 1** - calls: `TransactionalKV(); set("a", 1); begin(); set("a", 2); get("a"); rollback(); get("a"); commit()`  
   returns: `[null,null,null,null,2,true,1,false]`
 
-## Stub
-
-```python
-class TransactionalKV:
-    def __init__(self):
-        """No constructor arguments."""
-        pass
-
-    def set(self, k, v):
-        """set(k, v)"""
-        raise NotImplementedError
-
-    def get(self, k):
-        """get(k) -> v | null"""
-        raise NotImplementedError
-
-    def delete(self, k):
-        """delete(k) -> bool"""
-        raise NotImplementedError
-
-    def begin(self):
-        """begin()"""
-        raise NotImplementedError
-
-    def commit(self):
-        """commit() -> bool"""
-        raise NotImplementedError
-
-    def rollback(self):
-        """rollback() -> bool"""
-        raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -89,18 +54,22 @@ rollback() -> bool
 ## Tests
 
 ```json tests
-{"function":"TransactionalKV","kind":"ops","compare":"exact","fuzz":30,"perf":{"sizes":[20000,60000,100000],"limit_ms":5000,"max_exponent":1.5},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"calls":[["TransactionalKV",[]],["set",["a",1]],["begin",[]],["set",["a",2]],["get",["a"]],["rollback",[]],["get",["a"]],["commit",[]]]}},
-{"name":"edge-commit-nested-then-rollback-outer","tags":["edge"],"args":{"calls":[["TransactionalKV",[]],["set",["x",1]],["begin",[]],["set",["x",2]],["begin",[]],["set",["x",3]],["commit",[]],["get",["x"]],["rollback",[]],["get",["x"]]]}},
-{"name":"hidden-delete-in-txn","tags":["hidden"],"args":{"calls":[["TransactionalKV",[]],["set",["k",5]],["begin",[]],["delete",["k"]],["get",["k"]],["rollback",[]],["get",["k"]],["delete",["k"]],["delete",["k"]]]}},
-{"name":"hidden-no-open-txn","tags":["hidden"],"args":{"calls":[["TransactionalKV",[]],["commit",[]],["rollback",[]],["begin",[]],["commit",[]],["commit",[]]]}},
-{"name":"hidden-new-key-rolled-back","tags":["hidden"],"args":{"calls":[["TransactionalKV",[]],["begin",[]],["set",["n",1]],["rollback",[]],["get",["n"]]]}}
+{"function":"TransactionalKV","kind":"ops","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"calls":[["TransactionalKV",[]],["set",["a",1]],["begin",[]],["set",["a",2]],["get",["a"]],["rollback",[]],["get",["a"]],["commit",[]]]},"expected":[null,null,null,null,2,true,1,false]},
+{"name":"edge-commit-nested-then-rollback-outer","tags":["edge"],"args":{"calls":[["TransactionalKV",[]],["set",["x",1]],["begin",[]],["set",["x",2]],["begin",[]],["set",["x",3]],["commit",[]],["get",["x"]],["rollback",[]],["get",["x"]]]},"expected":[null,null,null,null,null,null,true,3,true,1]},
+{"name":"hidden-delete-in-txn","tags":["hidden"],"args":{"calls":[["TransactionalKV",[]],["set",["k",5]],["begin",[]],["delete",["k"]],["get",["k"]],["rollback",[]],["get",["k"]],["delete",["k"]],["delete",["k"]]]},"expected":[null,null,null,true,null,true,5,true,false]},
+{"name":"hidden-no-open-txn","tags":["hidden"],"args":{"calls":[["TransactionalKV",[]],["commit",[]],["rollback",[]],["begin",[]],["commit",[]],["commit",[]]]},"expected":[null,false,false,null,true,false]},
+{"name":"hidden-new-key-rolled-back","tags":["hidden"],"args":{"calls":[["TransactionalKV",[]],["begin",[]],["set",["n",1]],["rollback",[]],["get",["n"]]]},"expected":[null,null,null,true,null]},
+{"name":"random-1","tags":["hidden"],"args":{"calls":[["TransactionalKV",[]],["rollback",[]],["rollback",[]],["get",["b"]],["rollback",[]],["set",["c",9]],["set",["c",6]],["set",["a",7]],["set",["b",0]],["rollback",[]],["begin",[]],["get",["a"]],["set",["c",4]],["set",["b",8]],["begin",[]],["set",["a",5]],["rollback",[]],["rollback",[]]]},"expected":[null,false,false,null,false,null,null,null,null,false,null,7,null,null,null,null,true,true]},
+{"name":"random-2","tags":["hidden"],"args":{"calls":[["TransactionalKV",[]],["delete",["b"]],["commit",[]],["commit",[]],["get",["a"]],["delete",["b"]],["get",["b"]],["get",["b"]],["delete",["b"]],["delete",["b"]],["begin",[]],["commit",[]],["set",["c",0]],["delete",["c"]],["set",["b",0]],["set",["b",3]],["set",["b",4]],["commit",[]]]},"expected":[null,false,false,false,null,false,null,null,false,false,null,true,null,true,null,null,null,false]},
+{"name":"random-3","tags":["hidden"],"args":{"calls":[["TransactionalKV",[]],["commit",[]],["delete",["c"]],["commit",[]],["get",["a"]],["delete",["b"]],["rollback",[]],["commit",[]],["rollback",[]],["set",["b",9]],["set",["a",2]],["set",["a",0]],["commit",[]],["rollback",[]],["get",["a"]],["rollback",[]],["get",["c"]]]},"expected":[null,false,false,false,null,false,false,false,false,null,null,null,false,false,0,false,null]},
+{"name":"random-4","tags":["hidden"],"args":{"calls":[["TransactionalKV",[]],["set",["c",2]],["rollback",[]],["commit",[]],["delete",["a"]],["begin",[]],["set",["b",0]],["begin",[]],["set",["c",4]],["set",["a",1]],["set",["a",7]],["commit",[]],["commit",[]],["set",["b",3]],["commit",[]]]},"expected":[null,null,false,false,false,null,null,null,null,null,null,true,true,null,false]}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 class TransactionalKV:
     def __init__(self):
         self.data = {}
@@ -129,28 +98,11 @@ class TransactionalKV:
             return False
         self.data = self.snaps.pop()
         return True
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    return rand_ops(rnd, ("TransactionalKV",), rnd.randint(8, 40), [
-        (4, lambda r: ("set", r.choice("abc"), r.randint(0, 9))),
-        (3, lambda r: ("get", r.choice("abc"))),
-        (2, lambda r: ("delete", r.choice("abc"))),
-        (2, lambda r: ("begin",)), (2, lambda r: ("commit",)), (2, lambda r: ("rollback",))])
-
-def gen_perf(n):
-    rnd = random.Random(102)
-    return rand_ops(rnd, ("TransactionalKV",), n, [
-        (8, lambda r: ("set", "k%d" % r.randint(0, 300), r.randint(0, 99))),
-        (6, lambda r: ("get", "k%d" % r.randint(0, 300))),
-        (2, lambda r: ("delete", "k%d" % r.randint(0, 300))),
-        (1, lambda r: ("begin",)), (1, lambda r: ("commit",)), (1, lambda r: ("rollback",))])
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** Snapshot stack: O(keys) per begin. Undo log: O(1) per write, O(changes) per rollback.
-- **Scaling check:** sizes [20000, 60000, 100000], limit 5000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.5
 - **Clarifying questions (answer verbatim):**
   - Q: What does commit of a nested transaction mean?  
     A: The changes merge into the parent. An outer rollback still discards them.

@@ -35,7 +35,7 @@ Run `status`. If it reports an active session, read `mode` and `state` from `.mo
 
 1. `show ID` for the statement (engineer-facing). Ask them to restate it and to say how they would start. Listen.
 2. Teach in this order, one step at a time, checking after each: the brute force and its cost; what repeated work it does; the idea that removes it; the data structure that makes the idea cheap; the edge cases; the complexity.
-3. Use `show ID --full` to read the hidden material for yourself (hint ladder, traps, reference solution). Use the hint ladder as your outline, from question to key idea. Do not paste it as a block. Show the reference solution only when they have tried, or asked, and walk through it line by line: why this structure, what the invariant is.
+3. Use `show ID --full` to read the hidden material for yourself (hint ladder, traps, reference solution). Use the hint ladder as your outline, from question to key idea. Do not paste it as a block. Show the reference solution only when they have tried, or asked, and walk through it line by line: why this structure, what the invariant is. It is in Python; if they work in another language (they say so, or the plugin option `${user_config.default_language}` names one), translate it into that language and say that you did.
 4. Finish with: the pattern in one sentence, one similar problem (`list --tag`), and an offer to practise this one for real (`/mockinterview:practice ID`).
 
 ## Step 3: teach a design problem or topic

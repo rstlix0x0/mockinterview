@@ -1,12 +1,15 @@
 # mockinterview
 
-Practice software-engineering interviews inside Claude Code. An **Interviewer** runs timed live-coding and system-design rounds, a **Teacher** explains problems and concepts, and a Python runner checks your code by running it, not by reading it. You can add your own problems as plain Markdown files.
+Practice software-engineering interviews inside Claude Code. Two things, done well:
 
-Think of it as a small, local, open-source cousin of TestGorilla or Codility, with a patient coach attached. Nothing leaves your machine except what Claude Code itself sends to the model.
+1. **Mock interviews with an AI agent**: an **Interviewer** runs timed live-coding and system-design rounds and scores them; a **Teacher** explains problems and concepts.
+2. **A bank of problems with tests**: 57 coding problems, 16 design problems and 6 study documents, and you can add your own as plain Markdown files.
 
-> **Status: 0.3.0, early.** The plugin layer is the product. The optional pane and timer (a *mod*) use Claude Code's early-access Mods API and may break between releases. See [Limits](#honest-limits).
+You code in **your language, with your toolchain**. The agent turns the problem's test cases into a test file for your language, runs your test command, and grades the result. Nothing leaves your machine except what Claude Code itself sends to the model.
 
-> **New in 0.3.0: solve in Python, JavaScript, Go or Rust.** Say "in Rust" when you start, or set the `default_language` option. See [Solution languages](#solution-languages).
+> **Status: 0.4.0, early.** The plugin layer is the product. The optional pane and timer (a *mod*) use Claude Code's early-access Mods API and may break between releases. See [Limits](#honest-limits).
+
+> **New in 0.4.0: any language.** Say "in Kotlin" when you start, or set the `default_language` and `test_command` options. The runner no longer runs your code; your own toolchain does. See [Your language, your toolchain](#your-language-your-toolchain).
 
 ## Install
 
@@ -53,17 +56,17 @@ A first session:
 1. Open a folder where you want to work and start Claude Code.
 2. Run `/mockinterview:interview` and tell it your level.
 3. Say "go". The clock starts and you get the problem.
-4. Write your solution in **your own editor**, in the work file under `.mockinterview/work/` (`solution.py` for Python; see [Solution languages](#solution-languages) for the others). Say "run my tests" when you want them run.
+4. The interviewer sets up a stub and a test file in `.mockinterview/work/`, in your language. Write your solution in **your own editor**. Say "run my tests" when you want them run.
 5. Say "I'm done". After the last round you get a scorecard and a short debrief.
 
 ## What is in the box
 
-- **57 live-coding problems**, from micro-tasks to senior design-style problems (hash maps, graphs, dynamic programming, parsers, class design), each with visible, edge, hidden, fuzz and performance tests and a typed signature, so every one can be solved in all four languages.
+- **57 live-coding problems**, from micro-tasks to senior design-style problems (hash maps, graphs, dynamic programming, parsers, class design), each with a language-neutral typed signature, visible, edge and hidden test cases with expected values, and a reference solution.
 - **16 system-design problems** (URL shortener to LLM gateway) with clarifying answers, reference designs, probes, curveballs and a reference estimate.
 - **6 knowledge documents**: CS fundamentals, live-coding and system-design study guides, estimation, building blocks, simulations.
 - Estimation checker, design linter and six small simulations for testing claims (caching, hashing, queues, rate limits, fan-out, booking races).
 
-Not in 0.3.0: concurrency exercises, debugging exercises, SQL problems, the multiple-choice bank, and a behavioural round for staff candidates. The pack format is ready for them; they are on the list.
+Not in 0.4.0: concurrency exercises, debugging exercises, SQL problems, the multiple-choice bank, and a behavioural round for staff candidates. The pack format is ready for them; they are on the list.
 
 ## How a session works
 
@@ -75,31 +78,36 @@ Not in 0.3.0: concurrency exercises, debugging exercises, SQL problems, the mult
 
 Levels are junior, mid, senior and staff. Loops: junior two coding rounds; mid and senior two coding rounds and a design round; staff two design rounds and a coding round. Content for senior is the deepest; thinner pools fall back to the adjacent level, and the interviewer tells you.
 
-Scores use a 0 to 4 rubric per dimension (framing, approach, implementation, quality, testing, communication, adaptability for coding; scoping, estimation, architecture, deep dives, reliability, communication for design). Implementation is computed from your test results; the rest is rated by an independent scorer agent from the interviewer's notes, with one line of evidence each. The 85 / 70 / 55 reading scale is this project's own calibration, not an industry standard.
+Scores use a 0 to 4 rubric per dimension (framing, approach, implementation, quality, testing, communication, adaptability for coding; scoping, estimation, architecture, deep dives, reliability, communication for design). Implementation is computed from your test results (the share of cases that pass); the rest is rated by an independent scorer agent from the interviewer's notes, with one line of evidence each. The 85 / 70 / 55 reading scale is this project's own calibration, not an industry standard.
 
-## Solution languages
+## Your language, your toolchain
 
-Pick the language when you start ("practice two sum in Go") or set the `default_language` option. Tests, scoring and hints are the same in every language: the runner computes expected values with the problem's Python reference solution and compares results as JSON.
-
-| Language | Needs on your PATH | Work file in `.mockinterview/work/` | Names in the stub |
-|---|---|---|---|
-| Python (default) | `python3` 3.11+ | `solution.py` | `two_sum`, `class MinStack` |
-| JavaScript | `bun`, or `node` 18+ | `solution.js` | `twoSum`, `getMin` |
-| Go | `go` 1.21+ | `solution.go` (with `go.mod`) | `twoSum`, `NewMinStack`, `GetMin` |
-| Rust | `cargo` 1.70+ | `src/solution.rs` (with `Cargo.toml`) | `two_sum`, `MinStack::new`, `get_min` |
+Any language works, as long as its toolchain is installed and has a test command. Set it once in `/config` (`default_language`, `test_command`), or say it when you start ("practice two sum in Go"). Without a test command, the interviewer proposes the usual one and asks.
 
 ```
-begin ─▶ stub in your language ─▶ you edit it ─▶ "run my tests"
-                                                  │ Go, Rust: build once (skipped if unchanged),
-                                                  │ compile errors shown as they are
-                                                  ▼
-                              each test case in its own process ─▶ JSON result ─▶ compared
+begin ─▶ agent reads the cases (mi.py tests)
+           │
+           ▼
+   .mockinterview/work/      stub (your names, your types) + test file with the visible cases
+           │
+ you code ─▶ "run my tests" ─▶ agent adds the edge and hidden cases, runs YOUR test command
+                                  │   go test ./... · cargo test · pytest · npx vitest run · mvn test
+                                  ▼
+                       failing case names ─▶ mi.py record ─▶ counts, implementation score
 ```
 
-- Problem statements use the Python names; the stub in the work file has the names and types of your language.
-- Go and Rust stubs are typed from the problem's `## Signature`. The runner also writes and rewrites a small glue file (`mi_main.go`, or `src/main.rs` and `src/mi_*.rs`) that holds the problem's record types; do not edit it.
-- In an interview round a solution may use only the standard library: no packages in `package.json`, no `require` in `go.mod`, no dependencies in `Cargo.toml`. Practice and teach allow any package you have installed.
-- `python3 runner/mi.py langs` shows which toolchains were found. Details: [docs/languages.md](docs/languages.md).
+| Examples | Test command the agent proposes |
+|---|---|
+| Python | `python3 -m pytest -q` |
+| Go | `go test ./...` |
+| Rust | `cargo test` |
+| TypeScript, JavaScript | `npx vitest run`, `node --test`, `bun test` |
+| Java, Kotlin | `mvn -q test`, `gradle test` |
+
+- Problem statements use snake_case names (`two_sum`); the stub uses your language's names (`twoSum`).
+- In an interview round the edge and hidden cases are written to a separate test file only while they run; you see their counts, not their inputs.
+- There are no timing tests. Complexity is asked about in the round and graded under *approach*.
+- In an interview round a solution may use only the standard library. Practice and teach allow any package you have installed.
 
 ## The pane (optional mod)
 
@@ -111,7 +119,7 @@ The mod reads the session files the runner writes; it never owns state. Without 
 
 ## Add your own problems
 
-A problem is one Markdown file: frontmatter, a statement, a Python stub, a typed signature, tests, a reference solution and interviewer notes. Run `/mockinterview:add-problem` for a guided version, or read [docs/authoring.md](docs/authoring.md). Where packs live:
+A problem is one Markdown file: frontmatter, a statement, a typed signature, test cases with expected values, a Python reference solution and interviewer notes. Run `/mockinterview:add-problem` for a guided version, or read [docs/authoring.md](docs/authoring.md). Where packs live:
 
 | Root | Path |
 |---|---|
@@ -120,13 +128,13 @@ A problem is one Markdown file: frontmatter, a statement, a Python stub, a typed
 | Project | `<project>/.mockinterview/packs/` |
 | Option | the *Extra packs folder* plugin option |
 
-The user and project folders are optional: create them only if you want to add content. A pack with tests contains Python that the runner executes; packs outside the built-in folder are refused until you run `mi.py trust` on their root. Read a teammate's pack before you trust it.
+The user and project folders are optional: create them only if you want to add content. A session never runs pack code; only `mi.py selftest` runs a pack's reference solution, when you ask it to. Read a teammate's pack before you selftest it.
 
 ## Requirements and permissions
 
 - Claude Code with plugin support (v2.1.271 or later) and Python 3.11 or newer; the runner uses only the standard library.
-- For JavaScript, Go or Rust solutions, that language's toolchain (see [Solution languages](#solution-languages)). Go and Rust build offline; the first Rust build of a session takes a few seconds.
-- The skills call the runner through the Bash tool. To avoid a permission prompt on every call, you can allow just the runner in `.claude/settings.json`:
+- The toolchain of the language you solve in, with a test runner.
+- The skills call the runner and your test command through the Bash tool. To avoid a permission prompt on every runner call, you can allow just the runner in `.claude/settings.json`:
 
 ```json
 { "permissions": { "allow": ["Bash(python3 *runner/mi.py *)"] } }
@@ -134,20 +142,21 @@ The user and project folders are optional: create them only if you want to add c
 
 ## Privacy
 
-Everything is local: sessions, work files and Go and Rust builds live in `.mockinterview/` inside your project, history and the trust list live in the plugin's data folder under `~/.claude/plugins/data/`. The plugin never uploads anything and never edits your `.gitignore`; add `.mockinterview/` to it yourself if you do not want to commit your practice files.
+Everything is local: sessions and work files live in `.mockinterview/` inside your project, history lives in the plugin's data folder under `~/.claude/plugins/data/`. The plugin never uploads anything and never edits your `.gitignore`; add `.mockinterview/` to it yourself if you do not want to commit your practice files.
 
 ## Honest limits
 
 - **Guards are friction, not security.** You own the machine and can read any file. The guard only prevents accidental spoilers.
 - **The mod is early access.** It depends on the Mods API, which changes between releases. How it behaves in the Desktop app, VS Code and mobile is not verified yet; the terminal is the primary target. The plugin layer does not depend on it.
-- **Four solution languages**; the runner itself is Python. Statements show Python names. Go and Rust need a problem's typed `## Signature`: every built-in problem has one, but your own problem without one is offered in Python and JavaScript only. JavaScript numbers are exact only up to 2^53, so one problem (decode ways) needs a `BigInt` for its largest answers.
-- **The scorer is an AI judgement** for everything except test results. It cites evidence, and you can disagree with it.
+- **The agent writes the test file.** It translates the problem's cases into your language. A wrong translation is possible; failing cases show the expected value, so a harness mistake is visible. The reference solutions are Python; teach mode translates them.
+- **No timing or random tests.** Each problem has a fixed set of cases; complexity is judged in conversation.
+- **The scorer is an AI judgement** for everything except the test counts. It cites evidence, and you can disagree with it.
 - **Staff behavioural round** is not included yet.
 - Problems are classic patterns written for this project; the `source` field of each pack says whether it is original, adapted or third-party.
 
 ## Contributing
 
-Issues and pull requests are welcome, especially new packs, fixes to tests that are wrong, and new solution languages (a language file and a shim or glue generator, see [docs/languages.md](docs/languages.md)). Run `python3 runner/mi.py lint --all` and `python3 runner/mi.py selftest --all` before sending a pack. Do not copy text from commercial platforms or a company's real interview questions.
+Issues and pull requests are welcome, especially new packs and fixes to tests that are wrong. Run `python3 runner/mi.py lint --all` and `python3 runner/mi.py selftest --all` before sending a pack. Do not copy text from commercial platforms or a company's real interview questions.
 
 ## License
 

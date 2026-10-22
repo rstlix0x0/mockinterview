@@ -5,10 +5,8 @@ type: live-coding
 level: [junior]
 tags: [strings, parsing]
 time_minutes: 10
-languages: [python]
 entry: roman_to_int
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: A3
@@ -34,14 +32,6 @@ Convert a valid Roman numeral to an integer. Subtractive pairs (IV, IX, XL, XC, 
 - **Example 3** - input: `{"s":"MCMXCIV"}`  
   output: `1994`
 
-## Stub
-
-```python
-def roman_to_int(s):
-    """roman_to_int(s: string) -> int"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -51,20 +41,24 @@ roman_to_int(s: string) -> int
 ## Tests
 
 ```json tests
-{"function":"roman_to_int","kind":"func","compare":"exact","fuzz":10,"cases":[
-{"name":"example-1","tags":["visible"],"args":{"s":"III"}},
-{"name":"example-2","tags":["visible"],"args":{"s":"LVIII"}},
-{"name":"example-3","tags":["visible"],"args":{"s":"MCMXCIV"}},
-{"name":"edge-min","tags":["edge"],"args":{"s":"I"}},
-{"name":"edge-max","tags":["edge"],"args":{"s":"MMMCMXCIX"}},
-{"name":"hidden-iv","tags":["hidden"],"args":{"s":"IV"}},
-{"name":"hidden-xl","tags":["hidden"],"args":{"s":"XLIX"}}
+{"function":"roman_to_int","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"s":"III"},"expected":3},
+{"name":"example-2","tags":["visible"],"args":{"s":"LVIII"},"expected":58},
+{"name":"example-3","tags":["visible"],"args":{"s":"MCMXCIV"},"expected":1994},
+{"name":"edge-min","tags":["edge"],"args":{"s":"I"},"expected":1},
+{"name":"edge-max","tags":["edge"],"args":{"s":"MMMCMXCIX"},"expected":3999},
+{"name":"hidden-iv","tags":["hidden"],"args":{"s":"IV"},"expected":4},
+{"name":"hidden-xl","tags":["hidden"],"args":{"s":"XLIX"},"expected":49},
+{"name":"random-1","tags":["hidden"],"args":{"s":"MMCCCLXVIII"},"expected":2368},
+{"name":"random-2","tags":["hidden"],"args":{"s":"MCDLX"},"expected":1460},
+{"name":"random-3","tags":["hidden"],"args":{"s":"MDXCVIII"},"expected":1598},
+{"name":"random-4","tags":["hidden"],"args":{"s":"MMMDLXXVIII"},"expected":3578}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 def solve(s):
     v = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000}
     total = 0
@@ -74,16 +68,6 @@ def solve(s):
         else:
             total += v[ch]
     return total
-
-def gen_random(seed):
-    n = random.Random(seed).randint(1, 3999)
-    out = ''
-    for val, sym in [(1000, 'M'), (900, 'CM'), (500, 'D'), (400, 'CD'), (100, 'C'), (90, 'XC'),
-                     (50, 'L'), (40, 'XL'), (10, 'X'), (9, 'IX'), (5, 'V'), (4, 'IV'), (1, 'I')]:
-        while n >= val:
-            out += sym
-            n -= val
-    return {"s": out}
 ```
 
 ## Interviewer notes

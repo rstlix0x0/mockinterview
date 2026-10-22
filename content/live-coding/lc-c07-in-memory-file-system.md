@@ -5,10 +5,8 @@ type: live-coding
 level: [senior, staff]
 tags: [design, tree, trie-like]
 time_minutes: 45
-languages: [python]
 entry: InMemoryFS
 kind: ops
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: C7
@@ -39,35 +37,6 @@ File content may be an empty string, which is still a file.
 - **Example 1** - calls: `InMemoryFS(); mkdir("/a/b"); write("/a/b/f", "hello"); ls("/a"); read("/a/b/f"); ls("/a/b/f"); delete("/a"); ls("/")`  
   returns: `[null,true,true,["b"],"hello",["f"],true,[]]`
 
-## Stub
-
-```python
-class InMemoryFS:
-    def __init__(self):
-        """No constructor arguments."""
-        pass
-
-    def mkdir(self, path):
-        """mkdir(path) -> bool"""
-        raise NotImplementedError
-
-    def write(self, path, content):
-        """write(path, content) -> bool"""
-        raise NotImplementedError
-
-    def read(self, path):
-        """read(path) -> string | null"""
-        raise NotImplementedError
-
-    def ls(self, path):
-        """ls(path) -> string[] | null"""
-        raise NotImplementedError
-
-    def delete(self, path):
-        """delete(path) -> bool"""
-        raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -82,20 +51,24 @@ delete(path: string) -> bool
 ## Tests
 
 ```json tests
-{"function":"InMemoryFS","kind":"ops","compare":"exact","fuzz":40,"perf":{"sizes":[20000,100000,200000],"limit_ms":5000,"max_exponent":1.4},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"calls":[["InMemoryFS",[]],["mkdir",["/a/b"]],["write",["/a/b/f","hello"]],["ls",["/a"]],["read",["/a/b/f"]],["ls",["/a/b/f"]],["delete",["/a"]],["ls",["/"]]]}},
-{"name":"edge-root-ops","tags":["edge"],"args":{"calls":[["InMemoryFS",[]],["mkdir",["/"]],["write",["/","x"]],["read",["/"]],["ls",["/"]],["delete",["/"]]]}},
-{"name":"edge-empty-file","tags":["edge"],"args":{"calls":[["InMemoryFS",[]],["write",["/e",""]],["read",["/e"]],["ls",["/"]]]}},
-{"name":"hidden-file-blocks-mkdir","tags":["hidden"],"args":{"calls":[["InMemoryFS",[]],["write",["/f","1"]],["mkdir",["/f"]],["mkdir",["/f/g"]],["ls",["/"]]]}},
-{"name":"hidden-write-to-dir","tags":["hidden"],"args":{"calls":[["InMemoryFS",[]],["mkdir",["/d"]],["write",["/d","x"]],["read",["/d"]]]}},
-{"name":"hidden-write-missing-parent","tags":["hidden"],"args":{"calls":[["InMemoryFS",[]],["write",["/no/such/f","x"]],["ls",["/"]]]}},
-{"name":"hidden-mkdir-idempotent","tags":["hidden"],"args":{"calls":[["InMemoryFS",[]],["mkdir",["/a/b"]],["mkdir",["/a/b"]],["mkdir",["/a/b/c"]],["ls",["/a"]]]}}
+{"function":"InMemoryFS","kind":"ops","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"calls":[["InMemoryFS",[]],["mkdir",["/a/b"]],["write",["/a/b/f","hello"]],["ls",["/a"]],["read",["/a/b/f"]],["ls",["/a/b/f"]],["delete",["/a"]],["ls",["/"]]]},"expected":[null,true,true,["b"],"hello",["f"],true,[]]},
+{"name":"edge-root-ops","tags":["edge"],"args":{"calls":[["InMemoryFS",[]],["mkdir",["/"]],["write",["/","x"]],["read",["/"]],["ls",["/"]],["delete",["/"]]]},"expected":[null,false,false,null,[],false]},
+{"name":"edge-empty-file","tags":["edge"],"args":{"calls":[["InMemoryFS",[]],["write",["/e",""]],["read",["/e"]],["ls",["/"]]]},"expected":[null,true,"",["e"]]},
+{"name":"hidden-file-blocks-mkdir","tags":["hidden"],"args":{"calls":[["InMemoryFS",[]],["write",["/f","1"]],["mkdir",["/f"]],["mkdir",["/f/g"]],["ls",["/"]]]},"expected":[null,true,false,false,["f"]]},
+{"name":"hidden-write-to-dir","tags":["hidden"],"args":{"calls":[["InMemoryFS",[]],["mkdir",["/d"]],["write",["/d","x"]],["read",["/d"]]]},"expected":[null,true,false,null]},
+{"name":"hidden-write-missing-parent","tags":["hidden"],"args":{"calls":[["InMemoryFS",[]],["write",["/no/such/f","x"]],["ls",["/"]]]},"expected":[null,false,[]]},
+{"name":"hidden-mkdir-idempotent","tags":["hidden"],"args":{"calls":[["InMemoryFS",[]],["mkdir",["/a/b"]],["mkdir",["/a/b"]],["mkdir",["/a/b/c"]],["ls",["/a"]]]},"expected":[null,true,false,true,["b"]]},
+{"name":"random-1","tags":["hidden"],"args":{"calls":[["InMemoryFS",[]],["mkdir",["/b"]],["mkdir",["/a/x/z"]],["mkdir",["/b/x"]],["mkdir",["/c/d/e"]],["mkdir",["/b"]],["write",["/",""]],["ls",["/a/x/z"]],["mkdir",["/a"]],["ls",["/a/y"]],["write",["/b","hi"]],["read",["/b"]],["mkdir",["/a/x/z"]],["write",["/c/d/e",""]],["write",["/c/d/e","hi"]],["ls",["/b"]]]},"expected":[null,true,true,true,true,false,false,[],false,null,false,null,false,false,false,["x"]]},
+{"name":"random-2","tags":["hidden"],"args":{"calls":[["InMemoryFS",[]],["ls",["/b"]],["read",["/a/x/z"]],["write",["/a/y","hi"]],["delete",["/a/x"]],["read",["/a"]],["read",["/a"]],["mkdir",["/a/x/z"]],["read",["/a/y"]],["read",["/a/x/z"]],["write",["/c/d/e","hi"]],["mkdir",["/a/x"]],["read",["/a/x/z"]],["mkdir",["/a"]],["read",["/b"]],["ls",["/"]],["mkdir",["/a/y"]]]},"expected":[null,null,null,false,false,null,null,true,null,null,false,false,null,false,null,["a"],true]},
+{"name":"random-3","tags":["hidden"],"args":{"calls":[["InMemoryFS",[]],["delete",["/c/d/e"]],["write",["/a/y","yo"]],["mkdir",["/b"]],["write",["/b/x",""]],["read",["/a"]],["read",["/b"]],["write",["/a/x/z","yo"]],["mkdir",["/"]],["ls",["/b"]],["read",["/a"]],["ls",["/a/x/z"]],["delete",["/b"]]]},"expected":[null,false,false,true,true,null,null,false,false,["x"],null,null,true]},
+{"name":"random-4","tags":["hidden"],"args":{"calls":[["InMemoryFS",[]],["read",["/a/y"]],["ls",["/a/x/z"]],["write",["/b","yo"]],["ls",["/b/x"]],["write",["/a/y","hi"]],["write",["/b/x","hi"]],["read",["/a/y"]],["ls",["/b"]],["mkdir",["/"]],["read",["/b"]],["write",["/a/x/z",""]],["mkdir",["/a/y"]]]},"expected":[null,null,null,true,null,false,false,null,["b"],false,"yo",false,true]}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 class InMemoryFS:
     def __init__(self):
         self.root = {}
@@ -163,26 +136,11 @@ class InMemoryFS:
             return False
         del parent[parts[-1]]
         return True
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    paths = ["/", "/a", "/b", "/a/x", "/a/y", "/a/x/z", "/b/x", "/c/d/e"]
-    return rand_ops(rnd, ("InMemoryFS",), rnd.randint(8, 35), [
-        (3, lambda r: ("mkdir", r.choice(paths))), (4, lambda r: ("write", r.choice(paths), r.choice(["", "hi", "yo"]))),
-        (3, lambda r: ("read", r.choice(paths))), (3, lambda r: ("ls", r.choice(paths))), (2, lambda r: ("delete", r.choice(paths)))])
-
-def gen_perf(n):
-    rnd = random.Random(107)
-    dirs = ["/d%d/s%d" % (i, j) for i in range(30) for j in range(30)]
-    return rand_ops(rnd, ("InMemoryFS",), n, [
-        (3, lambda r: ("mkdir", r.choice(dirs))), (6, lambda r: ("write", r.choice(dirs) + "/f%d" % r.randint(0, 20), "v")),
-        (6, lambda r: ("read", r.choice(dirs) + "/f%d" % r.randint(0, 20))), (1, lambda r: ("ls", r.choice(dirs))), (1, lambda r: ("delete", r.choice(dirs) + "/f%d" % r.randint(0, 20)))])
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(depth) per operation (plus O(k log k) to sort k children for ls)
-- **Scaling check:** sizes [20000, 100000, 200000], limit 5000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.4
 - **Clarifying questions (answer verbatim):**
   - Q: Is `//` or a trailing slash possible?  
     A: No, paths are canonical.

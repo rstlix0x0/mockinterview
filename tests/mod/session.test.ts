@@ -71,13 +71,13 @@ test('parseSession tolerates wrong field types without throwing', async () => {
   expect(s?.scorecard).toBeNull()
 })
 
-test('parseSession reads the solution language, null when absent', async () => {
-  const s = parseSession(file({ language: 'python', solution: '.mockinterview/work/solution.py' }))
-  expect(s?.language).toBe('python')
-  expect(s?.solution).toBe('.mockinterview/work/solution.py')
+test('parseSession reads the language and test command, null when absent', async () => {
+  const s = parseSession(file({ language: 'Go', test_command: 'go test ./...' }))
+  expect(s?.language).toBe('Go')
+  expect(s?.testCommand).toBe('go test ./...')
   const old = parseSession(file())
   expect(old?.language).toBeNull()
-  expect(old?.solution).toBeNull()
+  expect(old?.testCommand).toBeNull()
 })
 
 test('limit_seconds falls back to time_minutes', async () => {

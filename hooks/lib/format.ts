@@ -98,7 +98,7 @@ export function resultsBlocks(s: Session | null): Block[] {
   for (const [category, ratio] of Object.entries(run.byCategory)) {
     out.push({ kind: 'text', text: `${category}: ${ratio}` })
   }
-  for (const line of run.perfLines) out.push({ kind: 'text', text: `perf ${line}` })
+  if (run.error !== null) out.push({ kind: 'code', text: clip(run.error) })
   const shown = run.failures.filter(f => f.shown)
   for (const f of shown) out.push(...failureBlocks(f))
   const hidden = run.failures.length - shown.length

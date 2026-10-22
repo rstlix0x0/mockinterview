@@ -5,10 +5,8 @@ type: live-coding
 level: [junior, mid]
 tags: [graph, dijkstra, heap]
 time_minutes: 30
-languages: [python]
 entry: network_delay
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: B16
@@ -34,14 +32,6 @@ A directed weighted network has nodes `1..n`. Each entry `[u, v, w]` in `times` 
 - **Example 2** - input: `{"times":[[1,2,1]],"n":2,"k":2}`  
   output: `-1`
 
-## Stub
-
-```python
-def network_delay(times, n, k):
-    """network_delay(times: int[][3], n: int, k: int) -> int"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -51,19 +41,26 @@ network_delay(times: int[][], n: int, k: int) -> int
 ## Tests
 
 ```json tests
-{"function":"network_delay","kind":"func","compare":"exact","fuzz":25,"perf":{"sizes":[10000,30000,60000],"limit_ms":6000,"max_exponent":1.7},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"times":[[2,1,1],[2,3,1],[3,4,1]],"n":4,"k":2}},
-{"name":"example-2","tags":["visible"],"args":{"times":[[1,2,1]],"n":2,"k":2}},
-{"name":"edge-single-node","tags":["edge"],"args":{"times":[],"n":1,"k":1}},
-{"name":"edge-unreachable","tags":["edge"],"args":{"times":[[1,2,5]],"n":3,"k":1}},
-{"name":"hidden-shorter-indirect","tags":["hidden"],"args":{"times":[[1,2,10],[1,3,1],[3,2,1]],"n":3,"k":1}},
-{"name":"hidden-parallel-edges","tags":["hidden"],"args":{"times":[[1,2,9],[1,2,2]],"n":2,"k":1}}
+{"function":"network_delay","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"times":[[2,1,1],[2,3,1],[3,4,1]],"n":4,"k":2},"expected":2},
+{"name":"example-2","tags":["visible"],"args":{"times":[[1,2,1]],"n":2,"k":2},"expected":-1},
+{"name":"edge-single-node","tags":["edge"],"args":{"times":[],"n":1,"k":1},"expected":0},
+{"name":"edge-unreachable","tags":["edge"],"args":{"times":[[1,2,5]],"n":3,"k":1},"expected":-1},
+{"name":"hidden-shorter-indirect","tags":["hidden"],"args":{"times":[[1,2,10],[1,3,1],[3,2,1]],"n":3,"k":1},"expected":2},
+{"name":"hidden-parallel-edges","tags":["hidden"],"args":{"times":[[1,2,9],[1,2,2]],"n":2,"k":1},"expected":2},
+{"name":"random-1","tags":["hidden"],"args":{"times":[[1,3,9],[3,2,2],[5,4,1]],"n":5,"k":3},"expected":-1},
+{"name":"random-2","tags":["hidden"],"args":{"times":[[1,2,7]],"n":3,"k":3},"expected":-1},
+{"name":"random-3","tags":["hidden"],"args":{"times":[[1,3,4],[3,2,6]],"n":4,"k":4},"expected":-1},
+{"name":"random-4","tags":["hidden"],"args":{"times":[],"n":2,"k":2},"expected":-1}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
+import heapq
+from collections import defaultdict
+
 def solve(times, n, k):
     adj = defaultdict(list)
     for u, v, w in times:
@@ -82,28 +79,11 @@ def solve(times, n, k):
                 dist[v] = nd
                 heapq.heappush(pq, (nd, v))
     return max(dist.values()) if len(dist) == n else -1
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    n = rnd.randint(1, 6)
-    times = [[rnd.randint(1, n), rnd.randint(1, n), rnd.randint(1, 9)] for _ in range(rnd.randint(0, 10))]
-    times = [t for t in times if t[0] != t[1]]
-    return {"times": times, "n": n, "k": rnd.randint(1, n)}
-
-def gen_perf(n):
-    rnd = random.Random(16)
-    times = [[i, i + 1, rnd.randint(1, 100)] for i in range(1, n)]
-    for _ in range(4 * n):
-        u, v = rnd.randint(1, n), rnd.randint(1, n)
-        if u != v:
-            times.append([u, v, rnd.randint(1, 100)])
-    return {"times": times, "n": n, "k": 1}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O((V + E) log V)
-- **Scaling check:** sizes [10000, 30000, 60000], limit 6000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.7
 - **Clarifying questions (answer verbatim):**
   - Q: Negative weights?  
     A: No.

@@ -5,10 +5,8 @@ type: live-coding
 level: [junior]
 tags: [dynamic-programming, arrays]
 time_minutes: 15
-languages: [python]
 entry: max_subarray
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: A13
@@ -32,14 +30,6 @@ Return the largest sum of any non-empty contiguous subarray of `nums`.
 - **Example 2** - input: `{"nums":[-3,-1,-2]}`  
   output: `-1`
 
-## Stub
-
-```python
-def max_subarray(nums):
-    """max_subarray(nums: int[]) -> int"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -49,38 +39,33 @@ max_subarray(nums: int[]) -> int
 ## Tests
 
 ```json tests
-{"function":"max_subarray","kind":"func","compare":"exact","fuzz":25,"perf":{"sizes":[100000,500000,1000000],"limit_ms":3000,"max_exponent":1.4},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"nums":[-2,1,-3,4,-1,2,1,-5,4]}},
-{"name":"example-2","tags":["visible"],"args":{"nums":[-3,-1,-2]}},
-{"name":"edge-single-negative","tags":["edge"],"args":{"nums":[-5]}},
-{"name":"edge-all-positive","tags":["edge"],"args":{"nums":[1,2,3]}},
-{"name":"hidden-restart","tags":["hidden"],"args":{"nums":[5,-10,3,2]}}
+{"function":"max_subarray","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"nums":[-2,1,-3,4,-1,2,1,-5,4]},"expected":6},
+{"name":"example-2","tags":["visible"],"args":{"nums":[-3,-1,-2]},"expected":-1},
+{"name":"edge-single-negative","tags":["edge"],"args":{"nums":[-5]},"expected":-5},
+{"name":"edge-all-positive","tags":["edge"],"args":{"nums":[1,2,3]},"expected":6},
+{"name":"hidden-restart","tags":["hidden"],"args":{"nums":[5,-10,3,2]},"expected":5},
+{"name":"random-1","tags":["hidden"],"args":{"nums":[1,-7,-5,-8,-8,0,8,2,-3,-5]},"expected":10},
+{"name":"random-2","tags":["hidden"],"args":{"nums":[-6,-5,5,5,-6,0]},"expected":10},
+{"name":"random-3","tags":["hidden"],"args":{"nums":[-1,-5,-7,2,-8,8,0]},"expected":8},
+{"name":"random-4","tags":["hidden"],"args":{"nums":[-8,5,-3,5]},"expected":7}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 def solve(nums):
     best = cur = nums[0]
     for x in nums[1:]:
         cur = max(x, cur + x)
         best = max(best, cur)
     return best
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    return {"nums": [rnd.randint(-8, 8) for _ in range(rnd.randint(1, 12))]}
-
-def gen_perf(n):
-    rnd = random.Random(213)
-    return {"nums": [rnd.randint(-1000, 1000) for _ in range(n)]}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(n) time, O(1) space (Kadane)
-- **Scaling check:** sizes [100000, 500000, 1000000], limit 3000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.4
 - **Clarifying questions (answer verbatim):**
   - Q: May the subarray be empty?  
     A: No. With all-negative input the answer is the largest element.

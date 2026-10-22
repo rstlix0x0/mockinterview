@@ -1,6 +1,13 @@
 # Runner contract
 
-`runner/mi.py` is the single source of truth for sessions, problem selection, test running and scoring. Skills call it through the agent's Bash tool; the mod only reads the files it writes. Python 3.11 or newer, standard library only. How solutions in a language are run is in [languages.md](languages.md).
+`runner/mi.py` is the single source of truth for sessions, problem selection, test results and scoring. Skills call it through the agent's Bash tool; the mod only reads the files it writes. Python 3.11 or newer, standard library only.
+
+The runner never runs the engineer's code. The engineer solves in any language with their own toolchain; the agent writes a native test file from the pack's cases (`tests`), runs the engineer's test command, and reports which cases failed (`record`):
+
+```
+tests ──▶ agent writes stub + test file ──▶ agent runs the test command ──▶ record --failed NAMES
+  (cases with expected values)              (go test, cargo test, pytest ...)     (counts, implementation score)
+```
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/runner/mi.py" [global options] COMMAND [options]
@@ -11,29 +18,24 @@ python3 "${CLAUDE_PLUGIN_ROOT}/runner/mi.py" [global options] COMMAND [options]
 | Option | Default | Meaning |
 |---|---|---|
 | `--project DIR` | current directory | Project folder; session and work files go in `DIR/.mockinterview/` |
-| `--data DIR` | `$CLAUDE_PLUGIN_DATA`, else `~/.mockinterview/data` | History, trust list and perf cache. A value that still contains `${` is ignored |
+| `--data DIR` | `$CLAUDE_PLUGIN_DATA`, else `~/.mockinterview/data` | History. A value that still contains `${` is ignored |
 | `--root DIR` | none, repeatable | Extra pack root |
 | `--plugin-root DIR` | parent of `runner/` | Where built-in `content/` lives |
 | `--pretty` | off | Indented JSON |
 
-Every command prints **one JSON object** on stdout. Success: `{"ok": true, ...}`. Failure: `{"ok": false, "error": "message", "code": "bad_state"}`. Exit codes: `0` success, `1` user or state error, `2` internal error. `run` and `selftest` exit `1` when a test fails but still print `"ok": true` with the results. Python older than 3.11 gets `{"ok": false, "code": "python_version"}` and exit code `2`.
+Every command prints **one JSON object** on stdout. Success: `{"ok": true, ...}`. Failure: `{"ok": false, "error": "message", "code": "bad_state"}`. Exit codes: `0` success, `1` user or state error, `2` internal error. `lint` and `selftest` exit `1` when a pack fails but still print `"ok": true` with the results; `record` exits `0` whatever it records. Python older than 3.11 gets `{"ok": false, "code": "python_version"}` and exit code `2`.
 
 ## Files
 
 | File | Written by | Purpose |
 |---|---|---|
 | `<project>/.mockinterview/session.json` | `mi.py` only | Current session; read by skills and by the mod |
-| `<project>/.mockinterview/work/solution.py` | `begin` (stub), then the engineer | The solution under test; the name comes from the language file (`solution` in `session.json`) |
-| `<project>/.mockinterview/work/go.mod`, `Cargo.toml` | `begin`, if absent | Go and Rust project files (the language file's `scaffold`); the engineer may add to them |
-| `<project>/.mockinterview/work/mi_main.go`, `src/main.rs`, `src/mi_*.rs` | `begin` and every `run` | Runner-owned glue for Go and Rust, generated from the pack's `## Signature`; rewritten, never edit |
-| `<project>/.mockinterview/build/<language>/` | `run` | Build output and a stamp of the source hash; a build is skipped while the sources are unchanged |
+| `<project>/.mockinterview/work/` | `begin` empties it; then the agent and the engineer | The engineer's project for the round: the stub, the test file and any manifest (`go.mod`, `Cargo.toml` ...), in the session's language |
 | `<project>/.mockinterview/work/design.md` | `begin` for design problems | The written design |
 | `<project>/.mockinterview/work/estimate.json` | the engineer | Estimation claims for `estimate-check` |
 | `<project>/.mockinterview/work/PROBLEM.md` | `begin` | Engineer-facing statement; the mod's Problem tab |
-| `<project>/.mockinterview/work/archive/` | `begin` | Earlier solutions moved here, never deleted |
+| `<project>/.mockinterview/work/archive/<time>/` | `begin` | The previous round's files, moved here, never deleted |
 | `<data>/history.jsonl` | `score`, `abandon` | One JSON line per session |
-| `<data>/trust.json` | `trust` | Acknowledged non-built-in roots (packs and language files) |
-| `<plugin>/languages/*.toml`, `~/.mockinterview/languages/`, `<project>/.mockinterview/languages/` | you | Language files; a later root wins on the same `id` |
 
 `.mockinterview/` is created automatically by `draw` or `pick`, not at install. The runner prints a hint to add it to `.gitignore` and never edits that file.
 
@@ -49,9 +51,8 @@ Every command prints **one JSON object** on stdout. Success: `{"ok": true, ...}`
   "seed": 918273,
   "round": 0,
   "rounds_total": 3,
-  "language": "python",
-  "runtime": null,
-  "solution": ".mockinterview/work/solution.py",
+  "language": "Go",
+  "test_command": "go test ./...",
   "loop": [
     {"problem": "lc-c01-lru-cache", "type": "live-coding", "time_minutes": 30,
      "title": null, "started_at": null, "finished_at": null,
@@ -69,9 +70,9 @@ Every command prints **one JSON object** on stdout. Success: `{"ok": true, ...}`
 
 - `state`: `drawn` (a round is chosen, hidden), `running` (clock on), `finished` (all rounds done, not scored), `scored`, `abandoned`.
 - In `interview` mode, `title` is `null` and the statement is withheld until `begin`. `current.title` and `PROBLEM.md` appear only after `begin`.
-- `language`, `runtime` and `solution` are chosen by `draw` or `pick` (`--lang`, `--runtime`) and hold for the whole session: the language id, the runtime used (null for a language without `runtimes`) and the work file, relative to the project. All three are null when the session has no live-coding round. A session file without them is Python with `solution.py`.
+- `language` and `test_command` are set by `draw` or `pick` (`--lang`, `--test-cmd`) and hold for the whole session. Both are free text, stored with runs of whitespace collapsed; `language` defaults to `python`, `test_command` to null (the agent proposes one). The runner never runs either.
 - `current` mirrors `loop[round]` for convenience; consumers can read only `state`, `mode`, `level`, `round`, `rounds_total` and `current`.
-- `current.last_run` has the shape returned by `run` (below).
+- `current.last_run` has the shape returned by `record` (below).
 - After `score`, `scorecard` is `{"total": 78.5, "reading": "...", "rounds": [{"problem": "...", "score": 80.0, "ratings": {"dimension": 3}, "weights": {"dimension": 15}, "penalty": 5, "evidence": {"dimension": "one line"}}], "top_gap": "..."}`.
 - Remaining time is `limit_seconds - (now - started_at)`; the mod computes it, the runner `status` command also reports it.
 
@@ -79,60 +80,49 @@ Every command prints **one JSON object** on stdout. Success: `{"ok": true, ...}`
 
 | Command | Does |
 |---|---|
-| `list [--type T] [--level L] [--tag X] [--search WORD] [--roots] [--verbose]` | Index of packs (`id, title, type, level, tags, time_minutes`; `--verbose` adds `source`, `root`, `path`); `--search` also looks inside knowledge documents and adds `body_hits`; with `--roots`, roots, trust status and overrides |
+| `list [--type T] [--level L] [--tag X] [--search WORD] [--roots] [--verbose]` | Index of packs (`id, title, type, level, tags, time_minutes`; `--verbose` adds `source`, `root`, `path`); `--search` also looks inside knowledge documents and adds `body_hits`; with `--roots`, roots and overrides |
 | `show ID [--full]` | Prints the engineer-facing sections. `--full` (all sections, including hidden) is refused while an interview round is `drawn` or `running`; `show` itself is refused in that state. After the last round (`finished`, `scored`) or `abandon` it works again |
-| `status` | `state`, `mode`, `level`, `round` (1-based, same as `round_number`), `rounds_total`, `type`, `time_minutes`, `title` (null until `begin` in interview mode), `elapsed_seconds`, `remaining_seconds`, `over_time`, `hints_used`, `has_run`, `language`, `solution` |
-| `draw --level L [--type T] [--seed N] [--lang ID] [--runtime ID]` | Starts an interview: builds the loop, draws all rounds, stores them, state `drawn`. Output has round count and round types, **no titles**, and `language`, `runtime`, `toolchain` (the detected version) when a round is live coding. For Go and Rust it draws only problems whose signature the language can express (a `warnings` entry counts the others) |
-| `pick ID [--replace] [--lang ID] [--runtime ID]` | Starts a practice session on one problem (engineer's choice), state `drawn`. Same language fields as `draw` for a live-coding problem |
-| `langs` | Lists the language files: `id`, `name`, `solution`, `root`, `path`, `trusted`, `available`, `version`, and `runtimes` (each with `available` and `version`) when the language has them; broken files in `warnings` |
-| `begin` | State `running`, starts the clock, writes `PROBLEM.md`, archives any earlier solution file or `design.md` into `work/archive/` (never deletes), writes the stub (the pack's `## Stub`, the language file's template, or for Go and Rust one generated from the `## Signature`) or design template, and for Go and Rust the project files and glue. Output: `statement`, `title`, `limit_seconds`, `started_at`, `files` (`solution` or `design`; `project` lists files written beside the solution), `problem_file`. One way: no re-draw |
-| `run [--mode visible\|all] [--perf] [--fuzz N]` | Runs the session's solution file against the current round's tests (live-coding only). In interview mode it first refuses imports outside the standard library: `dependencies_not_allowed`, with `found`. Go and Rust: rewrites the glue and builds first (`build`: `{"built": true, "seconds": 0.6}`, `built` false when the sources were unchanged); a failed build is `build_failed` |
+| `status` | `state`, `mode`, `level`, `round` (1-based, same as `round_number`), `rounds_total`, `type`, `time_minutes`, `title` (null until `begin` in interview mode), `elapsed_seconds`, `remaining_seconds`, `over_time`, `hints_used`, `has_run`, `language`, `test_command` |
+| `draw --level L [--type T] [--seed N] [--lang TEXT] [--test-cmd TEXT]` | Starts an interview: builds the loop, draws all rounds, stores them, state `drawn`. Output has round count and round types, **no titles**, and `language`, `test_command` |
+| `pick ID [--replace] [--lang TEXT] [--test-cmd TEXT]` | Starts a practice session on one problem (engineer's choice), state `drawn` |
+| `begin` | State `running`, starts the clock, moves everything in `work/` into `work/archive/<time>/` (never deletes), writes `PROBLEM.md` (the statement plus the signature for live coding), and for design problems `work/design.md` from the template. Output: `statement`, `title`, `limit_seconds`, `started_at`, `files` (`work_dir`, and `design`), `problem_file`, `archived_previous`; live coding adds `signature`, `language`, `test_command`. One way: no re-draw |
+| `tests [--all]` | Live coding, state `running`: the round's test cases. Output: `function`, `kind`, `compare`, `signature`, `language`, `test_command`, `set`, `count`, `cases[]` (`name`, `category`, `args`, `expected`). Visible cases only, or with `--all` also edge and hidden ones; in interview mode `--all` adds a `policy` reminder that those stay with the agent |
+| `record [--mode visible\|all] [--failed NAMES] [--got NAME=VALUE]... [--error TEXT]` | Live coding, state `running`: stores the result of running the engineer's tests as `last_run`. `--mode` names the case set that was run (default `all`); `--failed` lists the failing case names, comma-separated, every other case of the set passed; `--got` adds what a failing case returned, shown in its details; `--error` means nothing ran (build or syntax error): every case of the set fails and the text is kept (last 2000 characters). A name outside the set is `unknown_case`, with `cases` |
 | `hint` | Returns the next ladder rung from the notes and records its cost. Interview mode counts it; it never skips a rung. Output: `rung`, `cost`, `text`, `penalty_total`, `rungs_left` |
-| `notes [--section clarify\|followups\|traps\|reference\|all] [--problem ID]` | The interviewer's route to hidden notes for the current round (or a finished round of this session with `--problem`). `reference` also returns the oracle for live-coding problems. Hint and probe ladders are never returned here; use `hint`. Refused before `begin` in interview mode |
+| `notes [--section clarify\|followups\|traps\|reference\|all] [--problem ID]` | The interviewer's route to hidden notes for the current round (or a finished round of this session with `--problem`). `reference` also returns the reference solution (Python) for live-coding problems. Hint and probe ladders are never returned here; use `hint`. Refused before `begin` in interview mode |
 | `finish` | Stops the round, stores the result. More rounds: state `drawn`, `round` advances. Last round: state `finished` |
 | `score --ratings FILE\|-` | Takes ratings JSON, computes scores, writes `scorecard`, appends to history, state `scored` |
 | `abandon` | Ends the session, state `abandoned`, logged in history (no penalty) |
 | `lint PATH... \| --all` | Validates pack files |
-| `selftest [ID... \| --all] [--fuzz N] [--perf]` | Runs each oracle against its own tests, and checks its inputs and results against the pack's `## Signature`; a mismatch fails the pack with `signature_errors` |
+| `selftest [ID... \| --all] [--write-expected]` | Runs each pack's reference solution on its cases and compares with the stored `expected` values (`failures` lists the first three that differ). `--write-expected` first sets every `expected` from the reference and rewrites the tests block. The only command that executes pack code |
 | `history [--last N]` | Past sessions and per-tag averages |
 | `repeat ID --reason TEXT [--days 3]` / `repeat --list` | Marks a problem to repeat (appends to `.mockinterview/repeat.md`: `DATE \| id \| reason \| repeat after DATE`), or lists the marks and which are due |
-| `trust ROOT` | Acknowledges a non-built-in root |
 | `estimate-check` | Design problems: checks `work/estimate.json` against the pack's reference estimate |
 | `design-lint` | Design problems: structure check of `work/design.md` |
 
-Language errors (exit `1`):
-
-| `code` | When |
-|---|---|
-| `unknown_language` | No language file has that id; `error` lists the ids there are |
-| `unknown_runtime` | The language has no runtime with that id |
-| `toolchain_missing` | The language's `detect` command failed, or its `run` command could not be started |
-| `untrusted` | The language file is outside the built-in root and its folder is not trusted; `root` names it |
-| `dependencies_not_allowed` | Interview mode, `run`: the solution imports something outside the standard library (JavaScript: or `work/package.json` lists packages; Go: `go.mod` has a `require`; Rust: `Cargo.toml` has dependencies); `found` lists it |
-| `language_unsupported` | `pick`/`draw`: Go or Rust cannot run this problem, because it has no `## Signature` or uses a type the language's glue cannot express |
-| `build_failed` | `run`, Go and Rust: the compiler failed; `output` holds its last 60 lines, paths relative to `work/`. Nothing ran and `last_run` is unchanged |
-
-## run result
+## record result
 
 ```json
 {
-  "ok": true, "problem": "lc-a01-two-sum", "passed": 17, "failed": 2, "total": 19,
-  "by_category": {"visible": "3/3", "edge": "3/4", "hidden": "5/6", "fuzz": "6/6"},
-  "perf": {"ran": true, "ok": true, "lines": ["n=20000 120 ms (limit 3000 ms) ok"]},
+  "ok": true, "pass": false, "problem": "lc-a01-two-sum", "mode": "all",
+  "passed": 9, "failed": 2, "total": 11,
+  "by_category": {"visible": "2/2", "edge": "2/3", "hidden": "5/6"},
   "failures": [
     {"name": "edge-duplicates", "category": "edge", "shown": true,
-     "args": "...", "expected": "...", "got": "..."}
+     "args": "{\"nums\": [3, 3], \"target\": 6}", "expected": "[0, 1]", "got": "[0,0]"},
+    {"name": "random-2", "category": "hidden", "shown": false}
   ],
-  "details_policy": "interview: only visible failures are shown; practice: all, at most 3",
-  "elapsed_seconds": 1184
+  "details_policy": "interview: only visible failures are shown",
+  "recorded_at": "2026-10-22T09:11:13Z",
+  "elapsed_seconds": 412, "remaining_seconds": 188, "over_time": false
 }
 ```
 
-For class problems, `args` shows the calls with the method names of the session's language (`getMin` in JavaScript). In `interview` mode `failures[].shown` is `false` for `edge` and `hidden` cases and their `args`, `expected` and `got` are omitted; only the counts in `by_category` are visible. In `practice` mode, details are shown for up to three failing cases.
+With `--error`, the result also has `error` (the build or run output). In `interview` mode `failures[].shown` is `false` for `edge` and `hidden` cases and their `args`, `expected` and `got` are omitted; only the counts in `by_category` are visible. In `practice` mode, details are shown for up to three failing cases.
 
 ## Scoring
 
-Ratings are 0 to 4. `score = sum(weight x rating / 4) - hint penalties`. Rung costs are 0, 5, 10 and 20 points for H0 to H3 (live coding) and for P0 to P3 (design). In live coding every rung used is deducted (cumulative); in system design only the highest probe step reached is deducted. For live coding the `implementation` rating is computed from the last run (4 x share of passing cases, perf and fuzz included); every other rating comes from the `ratings` file.
+Ratings are 0 to 4. `score = sum(weight x rating / 4) - hint penalties`. Rung costs are 0, 5, 10 and 20 points for H0 to H3 (live coding) and for P0 to P3 (design). In live coding every rung used is deducted (cumulative); in system design only the highest probe step reached is deducted. For live coding the `implementation` rating is computed from the last `record` (4 x share of passing cases; a visible-only record counts only the visible cases); every other rating comes from the `ratings` file.
 
 Live-coding dimensions and weights: `framing` 15, `approach` 15, `implementation` 25, `quality` 10, `testing` 15, `communication` 10, `adaptability` 10.
 

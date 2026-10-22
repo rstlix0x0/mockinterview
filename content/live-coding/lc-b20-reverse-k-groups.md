@@ -5,10 +5,8 @@ type: live-coding
 level: [mid, senior]
 tags: [linked-list, pointers]
 time_minutes: 35
-languages: [python]
 entry: reverse_k_group
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: B20
@@ -33,14 +31,6 @@ Reverse a linked list `k` nodes at a time and return its values. If fewer than `
 - **Example 2** - input: `{"values":[1,2,3,4,5],"k":3}`  
   output: `[3,2,1,4,5]`
 
-## Stub
-
-```python
-def reverse_k_group(values, k):
-    """reverse_k_group(values: int[], k: int) -> int[]"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -50,19 +40,23 @@ reverse_k_group(values: int[], k: int) -> int[]
 ## Tests
 
 ```json tests
-{"function":"reverse_k_group","kind":"func","compare":"exact","fuzz":25,"perf":{"sizes":[50000,200000,500000],"limit_ms":4000,"max_exponent":1.4},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"values":[1,2,3,4,5],"k":2}},
-{"name":"example-2","tags":["visible"],"args":{"values":[1,2,3,4,5],"k":3}},
-{"name":"edge-empty","tags":["edge"],"args":{"values":[],"k":3}},
-{"name":"edge-k-one","tags":["edge"],"args":{"values":[1,2,3],"k":1}},
-{"name":"edge-k-larger-than-list","tags":["edge"],"args":{"values":[1,2],"k":5}},
-{"name":"hidden-exact-multiple","tags":["hidden"],"args":{"values":[1,2,3,4],"k":2}}
+{"function":"reverse_k_group","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"values":[1,2,3,4,5],"k":2},"expected":[2,1,4,3,5]},
+{"name":"example-2","tags":["visible"],"args":{"values":[1,2,3,4,5],"k":3},"expected":[3,2,1,4,5]},
+{"name":"edge-empty","tags":["edge"],"args":{"values":[],"k":3},"expected":[]},
+{"name":"edge-k-one","tags":["edge"],"args":{"values":[1,2,3],"k":1},"expected":[1,2,3]},
+{"name":"edge-k-larger-than-list","tags":["edge"],"args":{"values":[1,2],"k":5},"expected":[1,2]},
+{"name":"hidden-exact-multiple","tags":["hidden"],"args":{"values":[1,2,3,4],"k":2},"expected":[2,1,4,3]},
+{"name":"random-1","tags":["hidden"],"args":{"values":[97,38,4,88,15,90,3,83,98],"k":1},"expected":[97,38,4,88,15,90,3,83,98]},
+{"name":"random-2","tags":["hidden"],"args":{"values":[8,15,53,74,52],"k":1},"expected":[8,15,53,74,52]},
+{"name":"random-3","tags":["hidden"],"args":{"values":[29,13,76,4,89,40],"k":1},"expected":[29,13,76,4,89,40]},
+{"name":"random-4","tags":["hidden"],"args":{"values":[0,53,21],"k":4},"expected":[0,53,21]}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 def solve(values, k):
     out = []
     i = 0
@@ -71,20 +65,11 @@ def solve(values, k):
         out.extend(reversed(group) if len(group) == k else group)
         i += k
     return out
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    return {"values": [rnd.randint(0, 99) for _ in range(rnd.randint(0, 12))], "k": rnd.randint(1, 5)}
-
-def gen_perf(n):
-    rnd = random.Random(220)
-    return {"values": [rnd.randint(0, 10**6) for _ in range(n)], "k": 3}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(n) time, O(1) extra space
-- **Scaling check:** sizes [50000, 200000, 500000], limit 4000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.4
 - **Clarifying questions (answer verbatim):**
   - Q: Do node values change?  
     A: No. Only the links are rearranged.

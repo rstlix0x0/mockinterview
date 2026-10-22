@@ -5,10 +5,8 @@ type: live-coding
 level: [junior]
 tags: [hash-map, sorting]
 time_minutes: 15
-languages: [python]
 entry: group_anagrams
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: A4
@@ -33,14 +31,6 @@ Group the words that are anagrams of each other. Inside each group sort the word
 - **Example 2** - input: `{"words":[""]}`  
   output: `[[""]]`
 
-## Stub
-
-```python
-def group_anagrams(words):
-    """group_anagrams(words: string[]) -> string[][]"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -50,29 +40,31 @@ group_anagrams(words: string[]) -> string[][]
 ## Tests
 
 ```json tests
-{"function":"group_anagrams","kind":"func","compare":"exact","fuzz":6,"cases":[
-{"name":"example-1","tags":["visible"],"args":{"words":["eat","tea","tan","ate","nat","bat"]}},
-{"name":"example-2","tags":["visible"],"args":{"words":[""]}},
-{"name":"edge-empty-list","tags":["edge"],"args":{"words":[]}},
-{"name":"edge-duplicates","tags":["edge"],"args":{"words":["a","a","b"]}},
-{"name":"hidden-all-same","tags":["hidden"],"args":{"words":["abc","bca","cab","abc"]}},
-{"name":"hidden-singletons","tags":["hidden"],"args":{"words":["x","y","z"]}}
+{"function":"group_anagrams","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"words":["eat","tea","tan","ate","nat","bat"]},"expected":[["ate","eat","tea"],["bat"],["nat","tan"]]},
+{"name":"example-2","tags":["visible"],"args":{"words":[""]},"expected":[[""]]},
+{"name":"edge-empty-list","tags":["edge"],"args":{"words":[]},"expected":[]},
+{"name":"edge-duplicates","tags":["edge"],"args":{"words":["a","a","b"]},"expected":[["a","a"],["b"]]},
+{"name":"hidden-all-same","tags":["hidden"],"args":{"words":["abc","bca","cab","abc"]},"expected":[["abc","abc","bca","cab"]]},
+{"name":"hidden-singletons","tags":["hidden"],"args":{"words":["x","y","z"]},"expected":[["x"],["y"],["z"]]},
+{"name":"random-1","tags":["hidden"],"args":{"words":["","","",""]},"expected":[["","","",""]]},
+{"name":"random-2","tags":["hidden"],"args":{"words":["","","cbc","","aa"]},"expected":[["","",""],["aa"],["cbc"]]},
+{"name":"random-3","tags":["hidden"],"args":{"words":["a","","ac","cc","b","c"]},"expected":[[""],["a"],["ac"],["b"],["c"],["cc"]]},
+{"name":"random-4","tags":["hidden"],"args":{"words":["","abb","bb"]},"expected":[[""],["abb"],["bb"]]}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
+from collections import defaultdict
+
 def solve(words):
     g = defaultdict(list)
     for w in words:
         g[''.join(sorted(w))].append(w)
     groups = [sorted(v) for v in g.values()]
     return sorted(groups, key=lambda grp: grp[0])
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    return {"words": [''.join(rnd.choice("abc") for _ in range(rnd.randint(0, 3))) for _ in range(rnd.randint(0, 8))]}
 ```
 
 ## Interviewer notes

@@ -5,10 +5,8 @@ type: live-coding
 level: [mid, senior]
 tags: [sliding-window, hash-map]
 time_minutes: 40
-languages: [python]
 entry: min_window
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: B11
@@ -35,14 +33,6 @@ Return the shortest substring of `s` that contains every character of `t` with a
 - **Example 3** - input: `{"s":"abcabdebac","t":"cda"}`  
   output: `"cabd"`
 
-## Stub
-
-```python
-def min_window(s, t):
-    """min_window(s: string, t: string) -> string"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -52,21 +42,27 @@ min_window(s: string, t: string) -> string
 ## Tests
 
 ```json tests
-{"function":"min_window","kind":"func","compare":"exact","fuzz":25,"perf":{"sizes":[50000,200000,500000],"limit_ms":4000,"max_exponent":1.4},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"s":"ADOBECODEBANC","t":"ABC"}},
-{"name":"example-2","tags":["visible"],"args":{"s":"a","t":"aa"}},
-{"name":"example-3","tags":["visible"],"args":{"s":"abcabdebac","t":"cda"}},
-{"name":"edge-empty-s","tags":["edge"],"args":{"s":"","t":"a"}},
-{"name":"edge-whole-string","tags":["edge"],"args":{"s":"abc","t":"abc"}},
-{"name":"hidden-multiplicity","tags":["hidden"],"args":{"s":"aabdecab","t":"aab"}},
-{"name":"hidden-tie-leftmost","tags":["hidden"],"args":{"s":"abxab","t":"ab"}},
-{"name":"hidden-t-longer","tags":["hidden"],"args":{"s":"ab","t":"abc"}}
+{"function":"min_window","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"s":"ADOBECODEBANC","t":"ABC"},"expected":"BANC"},
+{"name":"example-2","tags":["visible"],"args":{"s":"a","t":"aa"},"expected":""},
+{"name":"example-3","tags":["visible"],"args":{"s":"abcabdebac","t":"cda"},"expected":"cabd"},
+{"name":"edge-empty-s","tags":["edge"],"args":{"s":"","t":"a"},"expected":""},
+{"name":"edge-whole-string","tags":["edge"],"args":{"s":"abc","t":"abc"},"expected":"abc"},
+{"name":"hidden-multiplicity","tags":["hidden"],"args":{"s":"aabdecab","t":"aab"},"expected":"aab"},
+{"name":"hidden-tie-leftmost","tags":["hidden"],"args":{"s":"abxab","t":"ab"},"expected":"ab"},
+{"name":"hidden-t-longer","tags":["hidden"],"args":{"s":"ab","t":"abc"},"expected":""},
+{"name":"random-1","tags":["hidden"],"args":{"s":"bacacacca","t":"cba"},"expected":"bac"},
+{"name":"random-2","tags":["hidden"],"args":{"s":"aabcb","t":"c"},"expected":"c"},
+{"name":"random-3","tags":["hidden"],"args":{"s":"aacacb","t":"c"},"expected":"c"},
+{"name":"random-4","tags":["hidden"],"args":{"s":"aba","t":"bbbb"},"expected":""}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
+from collections import Counter
+
 def solve(s, t):
     need = Counter(t)
     missing = len(t)
@@ -86,21 +82,11 @@ def solve(s, t):
             missing += 1
             left += 1
     return "" if best[0] == float('inf') else s[best[1]:best[2]]
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    return {"s": ''.join(rnd.choice("abc") for _ in range(rnd.randint(0, 12))),
-            "t": ''.join(rnd.choice("abc") for _ in range(rnd.randint(1, 4)))}
-
-def gen_perf(n):
-    rnd = random.Random(11)
-    return {"s": ''.join(rnd.choice("abcdefghij") for _ in range(n)), "t": "abcdefghijaabb"}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(|s| + |t|) time
-- **Scaling check:** sizes [50000, 200000, 500000], limit 4000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.4
 - **Clarifying questions (answer verbatim):**
   - Q: Case sensitive?  
     A: Yes.

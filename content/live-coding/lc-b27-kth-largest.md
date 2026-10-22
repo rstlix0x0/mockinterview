@@ -5,10 +5,8 @@ type: live-coding
 level: [junior, mid]
 tags: [heap, quickselect, sorting]
 time_minutes: 25
-languages: [python]
 entry: kth_largest
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: B27
@@ -32,14 +30,6 @@ Return the k-th largest element of `nums` (1-based, duplicates counted: in `[3, 
 - **Example 2** - input: `{"nums":[3,2,3,1,2,4,5,5,6],"k":4}`  
   output: `4`
 
-## Stub
-
-```python
-def kth_largest(nums, k):
-    """kth_largest(nums: int[], k: int) -> int"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -49,18 +39,24 @@ kth_largest(nums: int[], k: int) -> int
 ## Tests
 
 ```json tests
-{"function":"kth_largest","kind":"func","compare":"exact","fuzz":30,"perf":{"sizes":[50000,200000,500000],"limit_ms":4000,"max_exponent":1.5},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"nums":[3,2,1,5,6,4],"k":2}},
-{"name":"example-2","tags":["visible"],"args":{"nums":[3,2,3,1,2,4,5,5,6],"k":4}},
-{"name":"edge-single","tags":["edge"],"args":{"nums":[9],"k":1}},
-{"name":"edge-k-is-length","tags":["edge"],"args":{"nums":[4,1,7],"k":3}},
-{"name":"hidden-duplicates","tags":["hidden"],"args":{"nums":[3,3,2],"k":2}}
+{"function":"kth_largest","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"nums":[3,2,1,5,6,4],"k":2},"expected":5},
+{"name":"example-2","tags":["visible"],"args":{"nums":[3,2,3,1,2,4,5,5,6],"k":4},"expected":4},
+{"name":"edge-single","tags":["edge"],"args":{"nums":[9],"k":1},"expected":9},
+{"name":"edge-k-is-length","tags":["edge"],"args":{"nums":[4,1,7],"k":3},"expected":1},
+{"name":"hidden-duplicates","tags":["hidden"],"args":{"nums":[3,3,2],"k":2},"expected":3},
+{"name":"random-1","tags":["hidden"],"args":{"nums":[0,-8,-6,-9,-9,-1,7,1,-4,-6],"k":10},"expected":-9},
+{"name":"random-2","tags":["hidden"],"args":{"nums":[-7,-6,4,9,4,-7],"k":5},"expected":-7},
+{"name":"random-3","tags":["hidden"],"args":{"nums":[-2,-6,-8,1,-9,7,-1],"k":6},"expected":-8},
+{"name":"random-4","tags":["hidden"],"args":{"nums":[-9,4,-4,4],"k":4},"expected":-9}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
+import heapq
+
 def solve(nums, k):
     heap = []
     for x in nums:
@@ -69,21 +65,11 @@ def solve(nums, k):
         elif x > heap[0]:
             heapq.heapreplace(heap, x)
     return heap[0]
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    nums = [rnd.randint(-9, 9) for _ in range(rnd.randint(1, 12))]
-    return {"nums": nums, "k": rnd.randint(1, len(nums))}
-
-def gen_perf(n):
-    rnd = random.Random(227)
-    return {"nums": [rnd.randint(-10**9, 10**9) for _ in range(n)], "k": n // 3}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(n log k) with a size-k min-heap; O(n) average with quickselect
-- **Scaling check:** sizes [50000, 200000, 500000], limit 4000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.5
 - **Clarifying questions (answer verbatim):**
   - Q: Are duplicates distinct ranks?  
     A: Yes: duplicates count.

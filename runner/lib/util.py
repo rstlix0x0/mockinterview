@@ -76,14 +76,12 @@ class Ctx:
         here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # runner/
         self.plugin_root = os.path.abspath(plugin_root) if plugin_root else os.path.dirname(here)
         self.runner_dir = here
-        self.project = os.path.abspath(project or os.getcwd())
+        self.project = os.path.abspath(project or self._project_of(os.getcwd()))
         self.mi_dir = os.path.join(self.project, ".mockinterview")
         self.work_dir = os.path.join(self.mi_dir, "work")
         self.session_path = os.path.join(self.mi_dir, "session.json")
         self.data = self._resolve_data(data)
         self.history_path = os.path.join(self.data, "history.jsonl")
-        self.trust_path = os.path.join(self.data, "trust.json")
-        self.perf_cache = os.path.join(self.data, "perf_cache")
         self.builtin_root = os.path.join(self.plugin_root, "content")
         home = os.path.expanduser("~")
         self.extra_roots = [
@@ -91,6 +89,15 @@ class Ctx:
             ("project", os.path.join(self.mi_dir, "packs")),
         ] + [("option", os.path.abspath(os.path.expanduser(r))) for r in (roots or []) if r and "${" not in r]
         self.home = home
+
+    @staticmethod
+    def _project_of(cwd):
+        """The project folder: the current directory, or the folder above `.mockinterview/` when called inside it
+        (the agent may have changed into `.mockinterview/work/` to run the engineer's tests)."""
+        parts = cwd.split(os.sep)
+        if ".mockinterview" in parts:
+            return os.sep.join(parts[:parts.index(".mockinterview")]) or os.sep
+        return cwd
 
     @staticmethod
     def _resolve_data(data):
@@ -102,9 +109,3 @@ class Ctx:
     def all_roots(self):
         """[(label, path)] in precedence order, later wins."""
         return [("built-in", self.builtin_root)] + self.extra_roots
-
-    def language_roots(self):
-        """[(label, path)] of language-file folders, later wins."""
-        return [("built-in", os.path.join(self.plugin_root, "languages")),
-                ("user", os.path.join(self.home, ".mockinterview", "languages")),
-                ("project", os.path.join(self.mi_dir, "languages"))]

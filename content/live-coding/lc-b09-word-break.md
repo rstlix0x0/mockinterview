@@ -5,10 +5,8 @@ type: live-coding
 level: [junior, mid]
 tags: [dynamic-programming, strings]
 time_minutes: 25
-languages: [python]
 entry: word_break
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: B9
@@ -34,14 +32,6 @@ Return `true` if the non-empty string `s` can be split into a sequence of one or
 - **Example 2** - input: `{"s":"catsandog","word_dict":["cats","dog","sand","and","cat"]}`  
   output: `false`
 
-## Stub
-
-```python
-def word_break(s, word_dict):
-    """word_break(s: string, word_dict: string[]) -> bool"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -51,19 +41,23 @@ word_break(s: string, word_dict: string[]) -> bool
 ## Tests
 
 ```json tests
-{"function":"word_break","kind":"func","compare":"exact","fuzz":20,"perf":{"sizes":[30,1000,5000],"limit_ms":3000,"max_exponent":2.2},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"s":"leetcode","word_dict":["leet","code"]}},
-{"name":"example-2","tags":["visible"],"args":{"s":"catsandog","word_dict":["cats","dog","sand","and","cat"]}},
-{"name":"edge-single-char","tags":["edge"],"args":{"s":"a","word_dict":["a"]}},
-{"name":"edge-no-words-match","tags":["edge"],"args":{"s":"abc","word_dict":["d"]}},
-{"name":"hidden-reuse","tags":["hidden"],"args":{"s":"aaaa","word_dict":["a","aa"]}},
-{"name":"hidden-overlap-trap","tags":["hidden"],"args":{"s":"aaaaab","word_dict":["a","aa","aaa","aaaa","b"]}}
+{"function":"word_break","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"s":"leetcode","word_dict":["leet","code"]},"expected":true},
+{"name":"example-2","tags":["visible"],"args":{"s":"catsandog","word_dict":["cats","dog","sand","and","cat"]},"expected":false},
+{"name":"edge-single-char","tags":["edge"],"args":{"s":"a","word_dict":["a"]},"expected":true},
+{"name":"edge-no-words-match","tags":["edge"],"args":{"s":"abc","word_dict":["d"]},"expected":false},
+{"name":"hidden-reuse","tags":["hidden"],"args":{"s":"aaaa","word_dict":["a","aa"]},"expected":true},
+{"name":"hidden-overlap-trap","tags":["hidden"],"args":{"s":"aaaaab","word_dict":["a","aa","aaa","aaaa","b"]},"expected":true},
+{"name":"random-1","tags":["hidden"],"args":{"s":"babaaabbaa","word_dict":["baa","a","aab"]},"expected":false},
+{"name":"random-2","tags":["hidden"],"args":{"s":"abbaa","word_dict":["baa","ba","a"]},"expected":false},
+{"name":"random-3","tags":["hidden"],"args":{"s":"abaaa","word_dict":["bab","abb","a","aba"]},"expected":true},
+{"name":"random-4","tags":["hidden"],"args":{"s":"bbbbaba","word_dict":["b"]},"expected":false}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 def solve(s, word_dict):
     words = set(word_dict)
     lens = sorted({len(w) for w in words})
@@ -77,20 +71,11 @@ def solve(s, word_dict):
                 dp[i] = True
                 break
     return dp[len(s)]
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    words = list({''.join(rnd.choice("ab") for _ in range(rnd.randint(1, 3))) for _ in range(rnd.randint(1, 4))})
-    return {"s": ''.join(rnd.choice("ab") for _ in range(rnd.randint(1, 10))), "word_dict": words}
-
-def gen_perf(n):
-    return {"s": 'a' * n + 'b', "word_dict": ['a', 'aa', 'aaa', 'aaaa', 'aaaaa', 'aaaaaa']}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(n * L) with L the number of distinct word lengths
-- **Scaling check:** sizes [30, 1000, 5000], limit 3000 ms (calibrated to a straightforward Python solution), growth exponent at most 2.2
 - **Clarifying questions (answer verbatim):**
   - Q: Can words overlap?  
     A: No. It is a partition of s.

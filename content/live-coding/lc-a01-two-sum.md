@@ -5,10 +5,8 @@ type: live-coding
 level: [junior]
 tags: [hash-map]
 time_minutes: 10
-languages: [python]
 entry: two_sum
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: A1
@@ -34,14 +32,6 @@ Given an array of integers `nums` and an integer `target`, return the indices `[
 - **Example 2** - input: `{"nums":[3,2,4],"target":6}`  
   output: `[1,2]`
 
-## Stub
-
-```python
-def two_sum(nums, target):
-    """two_sum(nums: int[], target: int) -> int[2]"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -51,20 +41,24 @@ two_sum(nums: int[], target: int) -> int[]
 ## Tests
 
 ```json tests
-{"function":"two_sum","kind":"func","compare":"exact","fuzz":6,"perf":{"sizes":[20000,100000,200000],"limit_ms":3000,"max_exponent":1.4},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"nums":[2,7,11,15],"target":9}},
-{"name":"example-2","tags":["visible"],"args":{"nums":[3,2,4],"target":6}},
-{"name":"edge-negatives","tags":["edge"],"args":{"nums":[-3,4,3,90],"target":0}},
-{"name":"edge-duplicates","tags":["edge"],"args":{"nums":[3,3],"target":6}},
-{"name":"edge-zero-pair","tags":["edge"],"args":{"nums":[0,4,3,0],"target":0}},
-{"name":"hidden-large-values","tags":["hidden"],"args":{"nums":[1000000000,-1000000000,5],"target":0}},
-{"name":"hidden-pair-at-end","tags":["hidden"],"args":{"nums":[1,2,3,4,5,6],"target":11}}
+{"function":"two_sum","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"nums":[2,7,11,15],"target":9},"expected":[0,1]},
+{"name":"example-2","tags":["visible"],"args":{"nums":[3,2,4],"target":6},"expected":[1,2]},
+{"name":"edge-negatives","tags":["edge"],"args":{"nums":[-3,4,3,90],"target":0},"expected":[0,2]},
+{"name":"edge-duplicates","tags":["edge"],"args":{"nums":[3,3],"target":6},"expected":[0,1]},
+{"name":"edge-zero-pair","tags":["edge"],"args":{"nums":[0,4,3,0],"target":0},"expected":[0,3]},
+{"name":"hidden-large-values","tags":["hidden"],"args":{"nums":[1000000000,-1000000000,5],"target":0},"expected":[0,1]},
+{"name":"hidden-pair-at-end","tags":["hidden"],"args":{"nums":[1,2,3,4,5,6],"target":11},"expected":[4,5]},
+{"name":"random-1","tags":["hidden"],"args":{"nums":[-1,-9,-7,-10,10,10],"target":-8},"expected":[0,2]},
+{"name":"random-2","tags":["hidden"],"args":{"nums":[-8,-7,3,8],"target":11},"expected":[2,3]},
+{"name":"random-3","tags":["hidden"],"args":{"nums":[-3,-7,9,-9,0],"target":6},"expected":[0,2]},
+{"name":"random-4","tags":["hidden"],"args":{"nums":[2,8,-7],"target":-5},"expected":[0,2]}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 def solve(nums, target):
     seen = {}
     for j, x in enumerate(nums):
@@ -72,28 +66,11 @@ def solve(nums, target):
             return [seen[target - x], j]
         seen[x] = j
     return []
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    while True:
-        n = rnd.randint(2, 8)
-        nums = [rnd.randint(-10, 10) for _ in range(n)]
-        i, j = sorted(rnd.sample(range(n), 2))
-        target = nums[i] + nums[j]
-        pairs = [(a, b) for a in range(n) for b in range(a + 1, n) if nums[a] + nums[b] == target]
-        if len(pairs) == 1:
-            return {"nums": nums, "target": target}
-
-def gen_perf(n):
-    nums = list(range(n))
-    random.Random(1).shuffle(nums)
-    return {"nums": nums, "target": (n - 2) + (n - 1)}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(n) time, O(n) space
-- **Scaling check:** sizes [20000, 100000, 200000], limit 3000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.4
 - **Clarifying questions (answer verbatim):**
   - Q: Can the same element be used twice?  
     A: No. The two indices must differ.

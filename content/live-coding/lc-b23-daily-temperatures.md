@@ -5,10 +5,8 @@ type: live-coding
 level: [junior, mid]
 tags: [stack, monotonic-stack]
 time_minutes: 25
-languages: [python]
 entry: daily_temperatures
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: B23
@@ -32,14 +30,6 @@ For each day, return how many days you must wait for a **strictly warmer** tempe
 - **Example 2** - input: `{"temps":[30,40,50,60]}`  
   output: `[1,1,1,0]`
 
-## Stub
-
-```python
-def daily_temperatures(temps):
-    """daily_temperatures(temps: int[]) -> int[]"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -49,19 +39,23 @@ daily_temperatures(temps: int[]) -> int[]
 ## Tests
 
 ```json tests
-{"function":"daily_temperatures","kind":"func","compare":"exact","fuzz":25,"perf":{"sizes":[50000,200000,500000],"limit_ms":4000,"max_exponent":1.4},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"temps":[73,74,75,71,69,72,76,73]}},
-{"name":"example-2","tags":["visible"],"args":{"temps":[30,40,50,60]}},
-{"name":"edge-empty","tags":["edge"],"args":{"temps":[]}},
-{"name":"edge-descending","tags":["edge"],"args":{"temps":[5,4,3]}},
-{"name":"edge-equal","tags":["edge"],"args":{"temps":[7,7,7]}},
-{"name":"hidden-valley","tags":["hidden"],"args":{"temps":[5,1,1,6]}}
+{"function":"daily_temperatures","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"temps":[73,74,75,71,69,72,76,73]},"expected":[1,1,4,2,1,1,0,0]},
+{"name":"example-2","tags":["visible"],"args":{"temps":[30,40,50,60]},"expected":[1,1,1,0]},
+{"name":"edge-empty","tags":["edge"],"args":{"temps":[]},"expected":[]},
+{"name":"edge-descending","tags":["edge"],"args":{"temps":[5,4,3]},"expected":[0,0,0]},
+{"name":"edge-equal","tags":["edge"],"args":{"temps":[7,7,7]},"expected":[0,0,0]},
+{"name":"hidden-valley","tags":["hidden"],"args":{"temps":[5,1,1,6]},"expected":[3,2,1,0]},
+{"name":"random-1","tags":["hidden"],"args":{"temps":[34,30,31,30,40,40,30,34,38]},"expected":[4,1,2,1,0,0,1,1,0]},
+{"name":"random-2","tags":["hidden"],"args":{"temps":[31,31,36,39,36]},"expected":[2,1,1,0,0]},
+{"name":"random-3","tags":["hidden"],"args":{"temps":[33,31,39,30,35,30]},"expected":[2,1,0,1,0,0]},
+{"name":"random-4","tags":["hidden"],"args":{"temps":[30,36,32]},"expected":[1,0,0]}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 def solve(temps):
     ans = [0] * len(temps)
     stack = []
@@ -71,20 +65,11 @@ def solve(temps):
             ans[j] = i - j
         stack.append(i)
     return ans
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    return {"temps": [rnd.randint(30, 40) for _ in range(rnd.randint(0, 12))]}
-
-def gen_perf(n):
-    rnd = random.Random(223)
-    return {"temps": [rnd.randint(30, 100) for _ in range(n)]}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(n) time
-- **Scaling check:** sizes [50000, 200000, 500000], limit 4000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.4
 - **Clarifying questions (answer verbatim):**
   - Q: Does an equal temperature count as warmer?  
     A: No.

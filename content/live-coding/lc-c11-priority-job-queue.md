@@ -5,10 +5,8 @@ type: live-coding
 level: [senior, staff]
 tags: [design, heap, state-machine, retries]
 time_minutes: 50
-languages: [python]
 entry: JobQueue
 kind: ops
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: C11
@@ -40,39 +38,6 @@ Implement `JobQueue(max_attempts)`. The clock is supplied by the caller through 
 - **Example 1** - calls: `JobQueue(2); submit("a", 1, 0); submit("b", 5, 0); submit("c", 5, 10); claim(0); fail("b", 1, 3); claim(1); claim(4); fail("b", 5, 3); dead_letters(); stats()`  
   returns: `[null,true,true,true,"b","retry","a","b","dead",["b"],{"pending":1,"in_flight":1,"done":0,"dead":1}]`
 
-## Stub
-
-```python
-class JobQueue:
-    def __init__(self, max_attempts):
-        """constructor(max_attempts)"""
-        raise NotImplementedError
-
-    def submit(self, id, priority, available_at):
-        """submit(id, priority, available_at) -> bool"""
-        raise NotImplementedError
-
-    def claim(self, now):
-        """claim(now) -> id | null"""
-        raise NotImplementedError
-
-    def complete(self, id):
-        """complete(id) -> bool"""
-        raise NotImplementedError
-
-    def fail(self, id, now, backoff):
-        """fail(id, now, backoff) -> 'retry' | 'dead' | null"""
-        raise NotImplementedError
-
-    def dead_letters(self):
-        """dead_letters() -> string[]"""
-        raise NotImplementedError
-
-    def stats(self):
-        """stats() -> object"""
-        raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -88,19 +53,26 @@ stats() -> record{pending: int, in_flight: int, done: int, dead: int}
 ## Tests
 
 ```json tests
-{"function":"JobQueue","kind":"ops","compare":"exact","fuzz":50,"perf":{"sizes":[20000,100000,200000],"limit_ms":5000,"max_exponent":1.5},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"calls":[["JobQueue",[2]],["submit",["a",1,0]],["submit",["b",5,0]],["submit",["c",5,10]],["claim",[0]],["fail",["b",1,3]],["claim",[1]],["claim",[4]],["fail",["b",5,3]],["dead_letters",[]],["stats",[]]]}},
-{"name":"edge-nothing-eligible","tags":["edge"],"args":{"calls":[["JobQueue",[1]],["claim",[0]],["submit",["a",1,5]],["claim",[4]],["claim",[5]],["claim",[5]]]}},
-{"name":"edge-duplicate-submit","tags":["edge"],"args":{"calls":[["JobQueue",[1]],["submit",["a",1,0]],["submit",["a",9,0]],["claim",[0]],["complete",["a"]],["submit",["a",1,0]]]}},
-{"name":"hidden-priority-then-available-then-id","tags":["hidden"],"args":{"calls":[["JobQueue",[1]],["submit",["z",2,0]],["submit",["y",2,1]],["submit",["x",2,1]],["submit",["w",1,0]],["claim",[5]],["claim",[5]],["claim",[5]],["claim",[5]]]}},
-{"name":"hidden-retry-backoff","tags":["hidden"],"args":{"calls":[["JobQueue",[3]],["submit",["a",1,0]],["claim",[0]],["fail",["a",0,10]],["claim",[9]],["claim",[10]],["fail",["a",10,0]],["claim",[10]],["fail",["a",10,0]],["dead_letters",[]],["stats",[]]]}},
-{"name":"hidden-complete-and-fail-wrong-state","tags":["hidden"],"args":{"calls":[["JobQueue",[2]],["submit",["a",1,0]],["complete",["a"]],["fail",["a",0,1]],["claim",[0]],["complete",["a"]],["complete",["a"]],["fail",["a",0,1]],["fail",["nope",0,1]]]}}
+{"function":"JobQueue","kind":"ops","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"calls":[["JobQueue",[2]],["submit",["a",1,0]],["submit",["b",5,0]],["submit",["c",5,10]],["claim",[0]],["fail",["b",1,3]],["claim",[1]],["claim",[4]],["fail",["b",5,3]],["dead_letters",[]],["stats",[]]]},"expected":[null,true,true,true,"b","retry","a","b","dead",["b"],{"pending":1,"in_flight":1,"done":0,"dead":1}]},
+{"name":"edge-nothing-eligible","tags":["edge"],"args":{"calls":[["JobQueue",[1]],["claim",[0]],["submit",["a",1,5]],["claim",[4]],["claim",[5]],["claim",[5]]]},"expected":[null,null,true,null,"a",null]},
+{"name":"edge-duplicate-submit","tags":["edge"],"args":{"calls":[["JobQueue",[1]],["submit",["a",1,0]],["submit",["a",9,0]],["claim",[0]],["complete",["a"]],["submit",["a",1,0]]]},"expected":[null,true,false,"a",true,false]},
+{"name":"hidden-priority-then-available-then-id","tags":["hidden"],"args":{"calls":[["JobQueue",[1]],["submit",["z",2,0]],["submit",["y",2,1]],["submit",["x",2,1]],["submit",["w",1,0]],["claim",[5]],["claim",[5]],["claim",[5]],["claim",[5]]]},"expected":[null,true,true,true,true,"z","x","y","w"]},
+{"name":"hidden-retry-backoff","tags":["hidden"],"args":{"calls":[["JobQueue",[3]],["submit",["a",1,0]],["claim",[0]],["fail",["a",0,10]],["claim",[9]],["claim",[10]],["fail",["a",10,0]],["claim",[10]],["fail",["a",10,0]],["dead_letters",[]],["stats",[]]]},"expected":[null,true,"a","retry",null,"a","retry","a","dead",["a"],{"pending":0,"in_flight":0,"done":0,"dead":1}]},
+{"name":"hidden-complete-and-fail-wrong-state","tags":["hidden"],"args":{"calls":[["JobQueue",[2]],["submit",["a",1,0]],["complete",["a"]],["fail",["a",0,1]],["claim",[0]],["complete",["a"]],["complete",["a"]],["fail",["a",0,1]],["fail",["nope",0,1]]]},"expected":[null,true,false,null,"a",true,false,null,null]},
+{"name":"random-1","tags":["hidden"],"args":{"calls":[["JobQueue",[2]],["claim",[0]],["dead_letters",[]],["submit",["j0",2,5]],["claim",[8]],["claim",[9]],["claim",[11]],["fail",["j0",14,3]],["claim",[16]],["submit",["j1",3,21]],["complete",["j1"]],["submit",["j2",2,19]],["stats",[]]]},"expected":[null,null,[],true,"j0",null,null,"retry",null,true,false,true,{"pending":3,"in_flight":0,"done":0,"dead":0}]},
+{"name":"random-2","tags":["hidden"],"args":{"calls":[["JobQueue",[1]],["submit",["j0",3,5]],["stats",[]],["submit",["j1",0,9]],["stats",[]],["claim",[11]],["claim",[14]],["dead_letters",[]],["submit",["j2",0,17]]]},"expected":[null,true,{"pending":1,"in_flight":0,"done":0,"dead":0},true,{"pending":2,"in_flight":0,"done":0,"dead":0},"j0","j1",[],true]},
+{"name":"random-3","tags":["hidden"],"args":{"calls":[["JobQueue",[1]],["dead_letters",[]],["submit",["j0",2,2]],["claim",[4]],["submit",["j1",0,7]],["dead_letters",[]],["submit",["j2",2,11]],["fail",["j2",11,4]],["stats",[]],["submit",["j3",3,13]],["complete",["j3"]],["fail",["j1",19,3]]]},"expected":[null,[],true,"j0",true,[],true,null,{"pending":2,"in_flight":1,"done":0,"dead":0},true,false,null]},
+{"name":"random-4","tags":["hidden"],"args":{"calls":[["JobQueue",[3]],["claim",[0]],["stats",[]],["dead_letters",[]],["submit",["j0",0,3]],["fail",["j0",5,1]],["fail",["j0",6,0]],["claim",[6]],["fail",["j0",6,2]],["submit",["j0",1,12]],["submit",["j2",0,15]],["fail",["j0",12,2]],["submit",["j3",2,18]],["submit",["j4",1,18]],["fail",["j3",20,1]]]},"expected":[null,null,{"pending":0,"in_flight":0,"done":0,"dead":0},[],true,null,null,"j0","retry",false,true,null,true,true,null]}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
+import heapq
+from collections import Counter
+
 class JobQueue:
     def __init__(self, max_attempts):
         self.max_attempts = max_attempts
@@ -147,54 +119,11 @@ class JobQueue:
     def stats(self):
         c = Counter(self.state.values())
         return {k: c.get(k, 0) for k in ("pending", "in_flight", "done", "dead")}
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    calls = [["JobQueue", [rnd.randint(1, 3)]]]
-    now, jobs, nxt = 0, [], 0
-    for _ in range(rnd.randint(8, 40)):
-        now += rnd.randint(0, 3)
-        c = rnd.random()
-        if c < 0.3:
-            jid = "j%d" % (rnd.randint(0, nxt) if nxt and rnd.random() < 0.15 else nxt)
-            nxt += 1
-            jobs.append(jid)
-            calls.append(["submit", [jid, rnd.randint(0, 3), now + rnd.randint(0, 4)]])
-        elif c < 0.55:
-            calls.append(["claim", [now]])
-        elif c < 0.7 and jobs:
-            calls.append(["complete", [rnd.choice(jobs)]])
-        elif c < 0.85 and jobs:
-            calls.append(["fail", [rnd.choice(jobs), now, rnd.randint(0, 4)]])
-        elif c < 0.93:
-            calls.append(["dead_letters", []])
-        else:
-            calls.append(["stats", []])
-    return {"calls": calls}
-
-def gen_perf(n):
-    rnd = random.Random(111)
-    calls = [["JobQueue", [3]]]
-    now, claimed = 0, []
-    for i in range(n):
-        now += 1
-        c = rnd.random()
-        if c < 0.4:
-            calls.append(["submit", ["j%d" % i, rnd.randint(0, 9), now + rnd.randint(0, 50)]])
-        elif c < 0.7:
-            calls.append(["claim", [now]])
-        elif c < 0.85:
-            calls.append(["complete", ["j%d" % rnd.randint(0, i)]])
-        else:
-            calls.append(["fail", ["j%d" % rnd.randint(0, i), now, rnd.randint(1, 20)]])
-    calls.append(["stats", []])
-    return {"calls": calls}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(log n) per submit, claim and fail
-- **Scaling check:** sizes [20000, 100000, 200000], limit 5000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.5
 - **Clarifying questions (answer verbatim):**
   - Q: Does the attempt counter increase on claim or on fail?  
     A: On claim.

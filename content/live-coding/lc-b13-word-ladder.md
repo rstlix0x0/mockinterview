@@ -5,10 +5,8 @@ type: live-coding
 level: [mid, senior]
 tags: [graph, bfs]
 time_minutes: 40
-languages: [python]
 entry: ladder_length
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: B13
@@ -33,14 +31,6 @@ Transform `begin_word` into `end_word` by changing exactly one letter at a time;
 - **Example 2** - input: `{"begin_word":"hit","end_word":"cog","word_list":["hot","dot","dog","lot","log"]}`  
   output: `0`
 
-## Stub
-
-```python
-def ladder_length(begin_word, end_word, word_list):
-    """ladder_length(begin_word: string, end_word: string, word_list: string[]) -> int"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -50,18 +40,24 @@ ladder_length(begin_word: string, end_word: string, word_list: string[]) -> int
 ## Tests
 
 ```json tests
-{"function":"ladder_length","kind":"func","compare":"exact","fuzz":25,"perf":{"sizes":[5,6,7],"limit_ms":6000,"max_exponent":null},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"begin_word":"hit","end_word":"cog","word_list":["hot","dot","dog","lot","log","cog"]}},
-{"name":"example-2","tags":["visible"],"args":{"begin_word":"hit","end_word":"cog","word_list":["hot","dot","dog","lot","log"]}},
-{"name":"edge-one-step","tags":["edge"],"args":{"begin_word":"a","end_word":"b","word_list":["b"]}},
-{"name":"hidden-shortcut","tags":["hidden"],"args":{"begin_word":"aaa","end_word":"ccc","word_list":["aab","abb","bbb","bbc","bcc","ccc","aac","acc"]}},
-{"name":"hidden-unreachable","tags":["hidden"],"args":{"begin_word":"abc","end_word":"xyz","word_list":["xyz","abd"]}}
+{"function":"ladder_length","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"begin_word":"hit","end_word":"cog","word_list":["hot","dot","dog","lot","log","cog"]},"expected":5},
+{"name":"example-2","tags":["visible"],"args":{"begin_word":"hit","end_word":"cog","word_list":["hot","dot","dog","lot","log"]},"expected":0},
+{"name":"edge-one-step","tags":["edge"],"args":{"begin_word":"a","end_word":"b","word_list":["b"]},"expected":2},
+{"name":"hidden-shortcut","tags":["hidden"],"args":{"begin_word":"aaa","end_word":"ccc","word_list":["aab","abb","bbb","bbc","bcc","ccc","aac","acc"]},"expected":4},
+{"name":"hidden-unreachable","tags":["hidden"],"args":{"begin_word":"abc","end_word":"xyz","word_list":["xyz","abd"]},"expected":0},
+{"name":"random-1","tags":["hidden"],"args":{"begin_word":"abc","end_word":"ccc","word_list":["cca","baa","aab","cbb","aba","aaa","cac","cba","acc","bcb","bab"]},"expected":0},
+{"name":"random-2","tags":["hidden"],"args":{"begin_word":"bcc","end_word":"acc","word_list":["aac","aba","bbb","caa","cca","cac","ccc"]},"expected":0},
+{"name":"random-3","tags":["hidden"],"args":{"begin_word":"acc","end_word":"cbc","word_list":["acb","aba","cab","aab","cbb","bab","aaa","bcb"]},"expected":0},
+{"name":"random-4","tags":["hidden"],"args":{"begin_word":"bbc","end_word":"acc","word_list":["aaa","bbb","abc","bba","baa"]},"expected":0}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
+from collections import defaultdict, deque
+
 def solve(begin_word, end_word, word_list):
     words = set(word_list)
     if end_word not in words:
@@ -85,25 +81,11 @@ def solve(begin_word, end_word, word_list):
                         return dist[nb]
                     q.append(nb)
     return 0
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    L = 3
-    allw = [''.join(p) for p in itertools.product("abc", repeat=L)]
-    words = rnd.sample(allw, rnd.randint(2, 12))
-    b, e = rnd.sample(allw, 2)
-    return {"begin_word": b, "end_word": e, "word_list": words}
-
-def gen_perf(n):
-    k = n
-    words = [''.join(p) for p in itertools.product("abcd", repeat=k)]
-    return {"begin_word": "a" * k, "end_word": "d" * k, "word_list": words}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(N * L^2) with wildcard buckets, versus O(N^2 * L) pairwise
-- **Scaling check:** sizes [5, 6, 7], limit 6000 ms (calibrated to a straightforward Python solution)
 - **Clarifying questions (answer verbatim):**
   - Q: Is the begin word counted?  
     A: Yes: the answer for hit -> hot -> dot -> dog -> cog is 5.

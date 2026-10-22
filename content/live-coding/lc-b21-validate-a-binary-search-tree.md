@@ -5,10 +5,8 @@ type: live-coding
 level: [junior, mid]
 tags: [tree, bst, inorder]
 time_minutes: 25
-languages: [python]
 entry: validate_bst
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: B21
@@ -32,14 +30,6 @@ A binary tree is given in level-order with `null` for missing children (children
 - **Example 2** - input: `{"tree":[5,1,4,null,null,3,6]}`  
   output: `false`
 
-## Stub
-
-```python
-def validate_bst(tree):
-    """validate_bst(tree: (int | null)[]) -> bool"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -49,20 +39,26 @@ validate_bst(tree: int?[]) -> bool
 ## Tests
 
 ```json tests
-{"function":"validate_bst","kind":"func","compare":"exact","fuzz":40,"perf":{"sizes":[10000,50000,100000],"limit_ms":4000,"max_exponent":1.5},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"tree":[2,1,3]}},
-{"name":"example-2","tags":["visible"],"args":{"tree":[5,1,4,null,null,3,6]}},
-{"name":"edge-empty","tags":["edge"],"args":{"tree":[]}},
-{"name":"edge-single","tags":["edge"],"args":{"tree":[7]}},
-{"name":"edge-duplicate-child","tags":["edge"],"args":{"tree":[2,2]}},
-{"name":"hidden-grandchild-violates-root","tags":["hidden"],"args":{"tree":[10,5,15,null,null,6,20]}},
-{"name":"hidden-right-chain","tags":["hidden"],"args":{"tree":[1,null,2,null,3]}}
+{"function":"validate_bst","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"tree":[2,1,3]},"expected":true},
+{"name":"example-2","tags":["visible"],"args":{"tree":[5,1,4,null,null,3,6]},"expected":false},
+{"name":"edge-empty","tags":["edge"],"args":{"tree":[]},"expected":true},
+{"name":"edge-single","tags":["edge"],"args":{"tree":[7]},"expected":true},
+{"name":"edge-duplicate-child","tags":["edge"],"args":{"tree":[2,2]},"expected":false},
+{"name":"hidden-grandchild-violates-root","tags":["hidden"],"args":{"tree":[10,5,15,null,null,6,20]},"expected":false},
+{"name":"hidden-right-chain","tags":["hidden"],"args":{"tree":[1,null,2,null,3]},"expected":true},
+{"name":"random-1","tags":["hidden"],"args":{"tree":[19,2,32,1,7,20,null,0,null,null,16,null,null,null,null,11]},"expected":true},
+{"name":"random-2","tags":["hidden"],"args":{"tree":[4,null,7,null,26,null,37,35]},"expected":true},
+{"name":"random-3","tags":["hidden"],"args":{"tree":[14,6,20,2,null,null,32,0]},"expected":true},
+{"name":"random-4","tags":["hidden"],"args":{"tree":[0,null,28,10]},"expected":true}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
+from collections import deque
+
 def solve(tree):
     left, right = {}, {}
     q = deque([0])
@@ -90,50 +86,11 @@ def solve(tree):
         prev = tree[node]
         node = right.get(node)
     return True
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    root, kids = None, {}
-    for v in rnd.sample(range(40), rnd.randint(0, 9)):
-        if root is None:
-            root = v
-            continue
-        cur = root
-        while True:
-            side = 0 if v < cur else 1
-            if (cur, side) in kids:
-                cur = kids[(cur, side)]
-            else:
-                kids[(cur, side)] = v
-                break
-    ser, q = [], deque([root])
-    while q:
-        node = q.popleft()
-        if node is None:
-            ser.append(None)
-        else:
-            ser.append(node)
-            q.append(kids.get((node, 0)))
-            q.append(kids.get((node, 1)))
-    while ser and ser[-1] is None:
-        ser.pop()
-    if ser and rnd.random() < 0.5:
-        j = rnd.randrange(len(ser))
-        if ser[j] is not None:
-            ser[j] = rnd.randint(0, 40)
-    return {"tree": ser}
-
-def gen_perf(n):
-    tree = [0]
-    for i in range(1, n):
-        tree += [None, i]
-    return {"tree": tree}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(n) time, O(h) space
-- **Scaling check:** sizes [10000, 50000, 100000], limit 4000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.5
 - **Clarifying questions (answer verbatim):**
   - Q: Are duplicates allowed?  
     A: No.

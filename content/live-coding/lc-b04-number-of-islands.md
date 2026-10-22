@@ -5,10 +5,8 @@ type: live-coding
 level: [junior, mid]
 tags: [graph, dfs, bfs, grid]
 time_minutes: 25
-languages: [python]
 entry: num_islands
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: B4
@@ -33,14 +31,6 @@ legacy_id: B4
 - **Example 2** - input: `{"grid":["101","010","101"]}`  
   output: `5`
 
-## Stub
-
-```python
-def num_islands(grid):
-    """num_islands(grid: string[]) -> int"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -50,20 +40,24 @@ num_islands(grid: string[]) -> int
 ## Tests
 
 ```json tests
-{"function":"num_islands","kind":"func","compare":"exact","fuzz":15,"perf":{"sizes":[200,500,1000],"limit_ms":6000,"max_exponent":2.4},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"grid":["11000","11000","00100","00011"]}},
-{"name":"example-2","tags":["visible"],"args":{"grid":["101","010","101"]}},
-{"name":"edge-empty","tags":["edge"],"args":{"grid":[]}},
-{"name":"edge-all-water","tags":["edge"],"args":{"grid":["000","000"]}},
-{"name":"edge-all-land","tags":["edge"],"args":{"grid":["111","111"]}},
-{"name":"hidden-diagonal-not-connected","tags":["hidden"],"args":{"grid":["10","01"]}},
-{"name":"hidden-spiral","tags":["hidden"],"args":{"grid":["11111","00001","11101","10001","11111"]}}
+{"function":"num_islands","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"grid":["11000","11000","00100","00011"]},"expected":3},
+{"name":"example-2","tags":["visible"],"args":{"grid":["101","010","101"]},"expected":5},
+{"name":"edge-empty","tags":["edge"],"args":{"grid":[]},"expected":0},
+{"name":"edge-all-water","tags":["edge"],"args":{"grid":["000","000"]},"expected":0},
+{"name":"edge-all-land","tags":["edge"],"args":{"grid":["111","111"]},"expected":1},
+{"name":"hidden-diagonal-not-connected","tags":["hidden"],"args":{"grid":["10","01"]},"expected":2},
+{"name":"hidden-spiral","tags":["hidden"],"args":{"grid":["11111","00001","11101","10001","11111"]},"expected":1},
+{"name":"random-1","tags":["hidden"],"args":{"grid":["000","011","001","010","001"]},"expected":3},
+{"name":"random-2","tags":["hidden"],"args":{"grid":["0","1","1"]},"expected":1},
+{"name":"random-3","tags":["hidden"],"args":{"grid":["00","10","10","10"]},"expected":1},
+{"name":"random-4","tags":["hidden"],"args":{"grid":["1","0"]},"expected":1}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 def solve(grid):
     if not grid:
         return 0
@@ -83,20 +77,11 @@ def solve(grid):
                             seen[nx][ny] = True
                             stack.append((nx, ny))
     return count
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    r, c = rnd.randint(1, 5), rnd.randint(1, 5)
-    return {"grid": [''.join(rnd.choice("01") for _ in range(c)) for _ in range(r)]}
-
-def gen_perf(n):
-    return {"grid": ['1' * n for _ in range(n)]}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(R * C) time and space
-- **Scaling check:** sizes [200, 500, 1000], limit 6000 ms (calibrated to a straightforward Python solution), growth exponent at most 2.4
 - **Clarifying questions (answer verbatim):**
   - Q: Are diagonals connected?  
     A: No.

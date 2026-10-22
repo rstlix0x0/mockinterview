@@ -19,9 +19,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/runner/mi.py" --data "${CLAUDE_PLUGIN_DATA}" COMM
 
 - Extra pack folder from the plugin options: `${user_config.packs_dir}`. If that is a real absolute path, add `--root "<that path>"` to every call. If it is empty or still looks like a placeholder, leave `--root` out.
 - The runner works in the current project folder. Session files are in `.mockinterview/`.
-- Solution language: if the engineer names one, use its id (JavaScript, JS, Node or Bun: `javascript`; Go or Golang: `go`; Rust: `rust`); else use the plugin option `${user_config.default_language}` when it is a real id (not empty, not a placeholder); else leave `--lang` out (Python). Pass it as `--lang ID` to `pick`. If the runner answers `unknown_language` or `toolchain_missing`, say so in one sentence and offer `langs`, which lists the languages and whether each toolchain is installed. If it answers `language_unsupported`, the problem has no typed signature that Go or Rust can use: say so and offer Python, JavaScript or another problem. When the session's `language` is not `python`, say once after the statement that it shows Python names and the stub in the work file has the names and types to use (JavaScript and Go functions: camelCase, so `two_sum` is `twoSum`; Go methods: `GetMin`, constructor `NewMinStack`; Rust keeps `two_sum`, constructor `new`). Go and Rust work files are a normal project (`go.mod`, `Cargo.toml`); the runner owns and rewrites `mi_main.go` or `src/main.rs`, `src/mi_json.rs` and `src/mi_types.rs`, and those files hold the problem's record and tuple types.
+- Language and test command: the engineer solves in any language with their own toolchain. Language: the one the engineer names, else the plugin option `${user_config.default_language}` when it is real (not empty, not a placeholder), else Python. Test command: the plugin option `${user_config.test_command}` when it is real, else propose the usual one for that language (`python3 -m pytest -q`, `go test ./...`, `cargo test`, `npx vitest run`, `mvn -q test` ...) and get a yes in one line. Check the toolchain answers (for example `go version`) with the Bash tool; if it does not, say so and ask which language to use instead. Pass both to `pick` as `--lang "LANGUAGE" --test-cmd "COMMAND"`. The runner stores them and never runs them: you run the test command, in `.mockinterview/work/`.
 - Every command prints one JSON object. Parse it. If `ok` is false, read `error` and `code`, say in one plain sentence what is wrong, and fix the cause. Never retry the same call blindly.
-- Commands you use: `status`, `langs`, `list`, `pick`, `begin`, `run`, `hint`, `notes`, `estimate-check`, `design-lint`, `finish`, `score`, `abandon`, `show`, `repeat`.
+- Commands you use: `status`, `list`, `pick`, `begin`, `tests`, `record`, `hint`, `notes`, `estimate-check`, `design-lint`, `finish`, `score`, `abandon`, `show`, `repeat`.
 
 ## Step 0: unfinished session?
 
@@ -32,13 +32,13 @@ Run `status`. If it reports a session whose `state` is `drawn`, `running` or `fi
 1. If `$ARGUMENTS` is a problem id, check it with `list` (filter by `--type` if needed) and use it.
 2. Otherwise ask what they want: a type (live coding or system design), a level, a topic or tag. Run `list --type T --level L --tag X` (drop the filters they did not give) and show a compact table: `id`, `title`, `level`, `time_minutes`. Keep it to about ten rows; offer to narrow it. Knowledge packs (`type: knowledge`) are for `/mockinterview:teach`, not here.
 3. If they do not know what to pick, run `history --last 10` and suggest the problems for their weakest tags, or a problem they have not done yet.
-4. Run `pick ID`, with `--lang ID` as described above for a live-coding problem. If it says the pack is untrusted, tell the engineer what that means (the pack runs Python on their machine, see `docs/authoring.md`), and only run `trust ROOT` with their yes.
+4. For a live-coding problem, settle the language and test command as described above, then run `pick ID --lang "LANGUAGE" --test-cmd "COMMAND"`; for a design problem, `pick ID`.
 
 ## Step 2: begin
 
 1. Tell them the time suggestion and the work file, then run `begin` when they say they are ready (a casual "ok, start" is enough). Practice has a clock too, but it is a guide, not a limit: if it runs out, say so and let them continue.
 2. Read `${CLAUDE_PLUGIN_ROOT}/skills/interview/rounds.md` now, in full, and follow it in **practice** mode (the first table in that file lists what changes).
-3. Show the statement from the `begin` output (`statement`, or `.mockinterview/work/PROBLEM.md`) exactly as it is. The work file is `files.solution` from the `begin` output (for example `.mockinterview/work/solution.py`) or `.mockinterview/work/design.md`.
+3. Show the statement from the `begin` output (`statement`, or `.mockinterview/work/PROBLEM.md`) exactly as it is. For a live-coding problem, set up the stub and the test file as the round mechanics say, then name the files; for a design problem the work file is `.mockinterview/work/design.md`.
 
 ## Step 3: being a good partner
 
@@ -61,8 +61,9 @@ Run `status`. If it reports a session whose `state` is `drawn`, `running` or `fi
 | Command | Fields you read |
 |---|---|
 | `list` | entries with `id`, `title`, `type`, `level`, `tags`, `time_minutes` |
-| `pick`, `begin` | `ok`, `statement`, `limit_seconds`, `files.solution` |
-| `run` | `passed`, `failed`, `total`, `by_category`, `perf.lines`, `failures[]` (`name`, `category`, `args`, `expected`, `got`). Go and Rust: `code: build_failed` with the compiler's `output` means nothing ran; show the output |
+| `pick`, `begin` | `ok`, `statement`, `limit_seconds`, `signature`, `language`, `test_command` |
+| `tests` | `signature`, `kind`, `compare`, `cases[]` (`name`, `category`, `args`, `expected`) |
+| `record` | `passed`, `failed`, `total`, `by_category`, `failures[]` (`name`, `category`, `args`, `expected`, `got`), `error` |
 | `hint` | `rung`, `cost`, `text` |
 | `notes` | `text` |
 | `score` | `scorecard` (`total`, `reading`, `top_gap`) |

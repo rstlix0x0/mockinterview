@@ -5,10 +5,8 @@ type: live-coding
 level: [senior, staff]
 tags: [graph, dfs, cycle-detection, memoization]
 time_minutes: 45
-languages: [python]
 entry: evaluate_sheet
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: C9
@@ -42,14 +40,6 @@ Return a map with the same keys as `cells`. Chains can be 100000 cells long, so 
 - **Example 2** - input: `{"cells":{"A1":"=B1","B1":"=A1","C1":"=A1+1"}}`  
   output: `{"A1":"#CYCLE","B1":"#CYCLE","C1":"#CYCLE"}`
 
-## Stub
-
-```python
-def evaluate_sheet(cells):
-    """evaluate_sheet(cells: {string: string}) -> {string: int | '#ERR' | '#CYCLE'}"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -59,22 +49,28 @@ evaluate_sheet(cells: {string: string}) -> {string: int | string}
 ## Tests
 
 ```json tests
-{"function":"evaluate_sheet","kind":"func","compare":"exact","fuzz":60,"perf":{"sizes":[10000,50000,100000],"limit_ms":5000,"max_exponent":1.5},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"cells":{"A1":"5","A2":"=A1+3","A3":"=A2-A1-10"}}},
-{"name":"example-2","tags":["visible"],"args":{"cells":{"A1":"=B1","B1":"=A1","C1":"=A1+1"}}},
-{"name":"edge-empty","tags":["edge"],"args":{"cells":{}}},
-{"name":"edge-self-reference","tags":["edge"],"args":{"cells":{"A1":"=A1+1"}}},
-{"name":"edge-missing-ref","tags":["edge"],"args":{"cells":{"A1":"=Z9+4"}}},
-{"name":"hidden-cycle-beats-err","tags":["hidden"],"args":{"cells":{"A1":"=B1+C1","B1":"oops","C1":"=A1"}}},
-{"name":"hidden-err-propagates","tags":["hidden"],"args":{"cells":{"A1":"x","A2":"=A1+1","A3":"=A2"}}},
-{"name":"hidden-diamond","tags":["hidden"],"args":{"cells":{"A1":"2","B1":"=A1+A1","C1":"=A1-1","D1":"=B1+C1"}}},
-{"name":"hidden-feeds-cycle-but-not-in-it","tags":["hidden"],"args":{"cells":{"A1":"=B1","B1":"=A1","C1":"5","D1":"=C1+1"}}}
+{"function":"evaluate_sheet","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"cells":{"A1":"5","A2":"=A1+3","A3":"=A2-A1-10"}},"expected":{"A1":5,"A2":8,"A3":-7}},
+{"name":"example-2","tags":["visible"],"args":{"cells":{"A1":"=B1","B1":"=A1","C1":"=A1+1"}},"expected":{"A1":"#CYCLE","B1":"#CYCLE","C1":"#CYCLE"}},
+{"name":"edge-empty","tags":["edge"],"args":{"cells":{}},"expected":{}},
+{"name":"edge-self-reference","tags":["edge"],"args":{"cells":{"A1":"=A1+1"}},"expected":{"A1":"#CYCLE"}},
+{"name":"edge-missing-ref","tags":["edge"],"args":{"cells":{"A1":"=Z9+4"}},"expected":{"A1":4}},
+{"name":"hidden-cycle-beats-err","tags":["hidden"],"args":{"cells":{"A1":"=B1+C1","B1":"oops","C1":"=A1"}},"expected":{"A1":"#CYCLE","B1":"#ERR","C1":"#CYCLE"}},
+{"name":"hidden-err-propagates","tags":["hidden"],"args":{"cells":{"A1":"x","A2":"=A1+1","A3":"=A2"}},"expected":{"A1":"#ERR","A2":"#ERR","A3":"#ERR"}},
+{"name":"hidden-diamond","tags":["hidden"],"args":{"cells":{"A1":"2","B1":"=A1+A1","C1":"=A1-1","D1":"=B1+C1"}},"expected":{"A1":2,"B1":4,"C1":1,"D1":5}},
+{"name":"hidden-feeds-cycle-but-not-in-it","tags":["hidden"],"args":{"cells":{"A1":"=B1","B1":"=A1","C1":"5","D1":"=C1+1"}},"expected":{"A1":"#CYCLE","B1":"#CYCLE","C1":5,"D1":6}},
+{"name":"random-1","tags":["hidden"],"args":{"cells":{"B1":"=A1-7+A2","A1":"=12+C1+B2","C1":"=A1+","B2":"=B1+A2","A2":"=B1+7"}},"expected":{"B1":"#CYCLE","A1":"#CYCLE","C1":"#ERR","B2":"#CYCLE","A2":"#CYCLE"}},
+{"name":"random-2","tags":["hidden"],"args":{"cells":{"A1":"=A2-B1+C1","C1":"30","A2":"32"}},"expected":{"A1":62,"C1":30,"A2":32}},
+{"name":"random-3","tags":["hidden"],"args":{"cells":{"A2":"=A1-B2","A1":"=B1-12-A1","B1":"=B2","B2":"66"}},"expected":{"A2":"#CYCLE","A1":"#CYCLE","B1":66,"B2":66}},
+{"name":"random-4","tags":["hidden"],"args":{"cells":{"A1":"41","B2":"=Z9+12"}},"expected":{"A1":41,"B2":12}}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
+import re
+
 def solve(cells):
     CELL_RE = re.compile(r"(?:[A-Z][0-9]+|[0-9]+)(?:[+-](?:[A-Z][0-9]+|[0-9]+))*")
     TOK_RE = re.compile(r"([+-])([A-Z][0-9]+|[0-9]+)")
@@ -129,32 +125,11 @@ def solve(cells):
                 value[name] = sum(v if s == "+" else -v for s, v in vals)
             stack.pop()
     return {k: value[k] for k in cells}
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    names = ["A1", "A2", "B1", "B2", "C1"]
-    cells = {}
-    for nm in rnd.sample(names, rnd.randint(1, 5)):
-        r = rnd.random()
-        if r < 0.25:
-            cells[nm] = str(rnd.randint(-9, 99))
-        elif r < 0.9:
-            cells[nm] = "=" + "".join((rnd.choice("+-") if i else "") + rnd.choice(names + ["7", "12", "Z9"]) for i in range(rnd.randint(1, 3)))
-        else:
-            cells[nm] = rnd.choice(["abc", "=", "=A1+", "= 1", "=1++2", "1.5"])
-    return {"cells": cells}
-
-def gen_perf(n):
-    cells = {"A1": "1"}
-    for i in range(2, n + 1):
-        cells["A%d" % i] = "=A%d+1" % (i - 1)
-    return {"cells": dict(reversed(list(cells.items())))}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(cells + references)
-- **Scaling check:** sizes [10000, 50000, 100000], limit 5000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.5
 - **Clarifying questions (answer verbatim):**
   - Q: Are formulas case sensitive?  
     A: Yes. Only capital letters are cell names.

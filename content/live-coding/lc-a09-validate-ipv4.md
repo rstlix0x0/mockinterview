@@ -5,10 +5,8 @@ type: live-coding
 level: [junior]
 tags: [strings, validation]
 time_minutes: 10
-languages: [python]
 entry: valid_ipv4
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: A9
@@ -34,14 +32,6 @@ Return `true` if `s` is a valid dotted-decimal IPv4 address: exactly four decima
 - **Example 3** - input: `{"s":"1.01.1.1"}`  
   output: `false`
 
-## Stub
-
-```python
-def valid_ipv4(s):
-    """valid_ipv4(s: string) -> bool"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -51,24 +41,28 @@ valid_ipv4(s: string) -> bool
 ## Tests
 
 ```json tests
-{"function":"valid_ipv4","kind":"func","compare":"exact","fuzz":20,"cases":[
-{"name":"example-1","tags":["visible"],"args":{"s":"192.168.0.1"}},
-{"name":"example-2","tags":["visible"],"args":{"s":"256.1.1.1"}},
-{"name":"example-3","tags":["visible"],"args":{"s":"1.01.1.1"}},
-{"name":"edge-empty","tags":["edge"],"args":{"s":""}},
-{"name":"edge-three-parts","tags":["edge"],"args":{"s":"1.2.3"}},
-{"name":"edge-five-parts","tags":["edge"],"args":{"s":"1.2.3.4.5"}},
-{"name":"edge-empty-part","tags":["edge"],"args":{"s":"1..2.3"}},
-{"name":"hidden-zeros","tags":["hidden"],"args":{"s":"0.0.0.0"}},
-{"name":"hidden-plus","tags":["hidden"],"args":{"s":"+1.2.3.4"}},
-{"name":"hidden-space","tags":["hidden"],"args":{"s":"1.2.3.4 "}},
-{"name":"hidden-unicode-digit","tags":["hidden"],"args":{"s":"1.2.3.٤"}}
+{"function":"valid_ipv4","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"s":"192.168.0.1"},"expected":true},
+{"name":"example-2","tags":["visible"],"args":{"s":"256.1.1.1"},"expected":false},
+{"name":"example-3","tags":["visible"],"args":{"s":"1.01.1.1"},"expected":false},
+{"name":"edge-empty","tags":["edge"],"args":{"s":""},"expected":false},
+{"name":"edge-three-parts","tags":["edge"],"args":{"s":"1.2.3"},"expected":false},
+{"name":"edge-five-parts","tags":["edge"],"args":{"s":"1.2.3.4.5"},"expected":false},
+{"name":"edge-empty-part","tags":["edge"],"args":{"s":"1..2.3"},"expected":false},
+{"name":"hidden-zeros","tags":["hidden"],"args":{"s":"0.0.0.0"},"expected":true},
+{"name":"hidden-plus","tags":["hidden"],"args":{"s":"+1.2.3.4"},"expected":false},
+{"name":"hidden-space","tags":["hidden"],"args":{"s":"1.2.3.4 "},"expected":false},
+{"name":"hidden-unicode-digit","tags":["hidden"],"args":{"s":"1.2.3.٤"},"expected":false},
+{"name":"random-1","tags":["hidden"],"args":{"s":"01.0.1.0.0"},"expected":false},
+{"name":"random-2","tags":["hidden"],"args":{"s":"1.1.a.1 "},"expected":false},
+{"name":"random-3","tags":["hidden"],"args":{"s":"256.1.1 .0"},"expected":false},
+{"name":"random-4","tags":["hidden"],"args":{"s":"0.a.255.a"},"expected":false}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 def solve(s):
     parts = s.split('.')
     if len(parts) != 4:
@@ -81,11 +75,6 @@ def solve(s):
         if int(p) > 255:
             return False
     return True
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    pieces = ["0", "1", "255", "256", "01", "", "a", "10", "-1", "1 "]
-    return {"s": '.'.join(rnd.choice(pieces) for _ in range(rnd.choice([3, 4, 4, 4, 5])))}
 ```
 
 ## Interviewer notes

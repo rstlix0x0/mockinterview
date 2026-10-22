@@ -17,19 +17,20 @@ This document was written before the code. Where they disagree, [runner.md](runn
 
 | Topic | Design said | As built |
 |---|---|---|
-| Test sections | `Visible tests`, `Hidden tests`, `Oracle` with a `check()` function | One `## Tests` block (the kit's suite format, every case tagged `visible`, `edge` or `hidden`) and one `## Oracle` block (`solve` or the reference class, plus `gen_random` and `gen_perf`); expected values come from the oracle |
+| Test sections | `Visible tests`, `Hidden tests`, `Oracle` with a `check()` function | One `## Tests` block (every case tagged `visible`, `edge` or `hidden`, with its stored `expected` value), a language-neutral `## Signature`, and a `## Reference solution` that `selftest` checks the expected values against |
+| Running code | the runner runs `solution.py` per case | Since 0.4.0 the runner never runs the engineer's code: they solve in any language with their own toolchain, the agent writes a native test file from `tests`, runs their test command and reports failures with `record`. No fuzz or timing tests; complexity is judged in the conversation |
 | Extra pack roots | `~/.mockinterview/` and `<project>/.mockinterview/` | The `packs/` subfolder of each, so `work/` and `session.json` are never scanned |
-| Runner commands | `list`, `draw`, `begin`, `run`, `hint`, `finish`, `lint`, `selftest`, `history` | Also `show`, `status`, `pick`, `notes`, `score`, `abandon`, `repeat`, `trust`, `estimate-check`, `design-lint` |
+| Runner commands | `list`, `draw`, `begin`, `run`, `hint`, `finish`, `lint`, `selftest`, `history` | `tests` and `record` instead of `run`; also `show`, `status`, `pick`, `notes`, `score`, `abandon`, `repeat`, `estimate-check`, `design-lint`. No pack trust: sessions never execute pack code |
 | Hidden notes for the interviewer | not specified | `mi.py notes --section clarify, followups, traps, reference`; the agent never reads pack files during a round |
 | Hint penalties | cumulative | Cumulative for live coding; only the highest probe step for system design (as in the original kit) |
 | Rating dimensions | named in prose | Fixed keys: `framing approach implementation quality testing communication adaptability` and `scoping estimation architecture deep_dives reliability communication` |
-| Existing work files | "ask before overwriting" | `begin` moves an earlier `solution.py` or `design.md` into `work/archive/`; nothing is deleted |
+| Existing work files | "ask before overwriting" | `begin` moves everything in `work/` into `work/archive/<time>/`; nothing is deleted |
 | "To repeat" marks | in `history.jsonl` only | Also `repeat` writes `.mockinterview/repeat.md` and `repeat --list` shows what is due |
 | Mod tools | optional `$.tool.register` wrappers | Not built: the mod only reads `session.json` and `work/PROBLEM.md`, which avoids depending on `$.process` (CLI only) |
 | Library tab | not specified | A fourth pane, Library: the mod walks the pack roots with `$.fs.list` and reads only frontmatter (`hooks/lib/library.ts`, a port of the runner's parser). A button fills the prompt box with `/mockinterview:practice ID` or `/mockinterview:teach ID`; nothing is sent until the engineer presses Enter. Hidden during an interview round |
 | Content | all tiers A to G and S1 to S15 | Tiers A, B, C (57 coding problems), S1 to S16 and 6 knowledge documents; concurrency (D), debugging (E), SQL (F) and the multiple-choice bank (G) are deferred because each needs its own checker |
 
-What was verified: the runner has unit tests (`python3 -m unittest discover -s tests`), all packs pass `lint --all` and `selftest --all`, `claude plugin validate` passes, and a full two-round interview, a practice session and a teach session were run through the real skills with `claude -p` and `--plugin-dir`. The mod passes `claude plugin validate` and its 51 tests (`claude plugin test .`), and its parser was checked against a real `session.json` written by the runner. Not verified: the mod drawing in a live terminal, VS Code or the Desktop app, which has not been looked at yet.
+What was verified: the runner has unit tests (`python3 -m unittest discover -s tests`), all packs pass `lint --all` and `selftest --all`, `claude plugin validate` passes, and a full two-round interview, a practice session and a teach session were run through the real skills with `claude -p` and `--plugin-dir`. The mod passes `claude plugin validate` and its tests (`claude plugin test .`), and its parser was checked against a real `session.json` written by the runner. Not verified: the mod drawing in a live terminal, VS Code or the Desktop app, which has not been looked at yet.
 
 ---
 

@@ -5,10 +5,8 @@ type: live-coding
 level: [junior, mid]
 tags: [sliding-window, hash-map]
 time_minutes: 25
-languages: [python]
 entry: longest_unique_substring
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: B1
@@ -35,14 +33,6 @@ Return the length of the longest substring of `s` that contains no repeated char
 - **Example 3** - input: `{"s":"pwwkew"}`  
   output: `3`
 
-## Stub
-
-```python
-def longest_unique_substring(s):
-    """longest_unique_substring(s: string) -> int"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -52,22 +42,26 @@ longest_unique_substring(s: string) -> int
 ## Tests
 
 ```json tests
-{"function":"longest_unique_substring","kind":"func","compare":"exact","fuzz":15,"perf":{"sizes":[50000,200000,500000],"limit_ms":3000,"max_exponent":1.4},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"s":"abcabcbb"}},
-{"name":"example-2","tags":["visible"],"args":{"s":"bbbbb"}},
-{"name":"example-3","tags":["visible"],"args":{"s":"pwwkew"}},
-{"name":"edge-empty","tags":["edge"],"args":{"s":""}},
-{"name":"edge-single","tags":["edge"],"args":{"s":"a"}},
-{"name":"hidden-abba","tags":["hidden"],"args":{"s":"abba"}},
-{"name":"hidden-all-unique","tags":["hidden"],"args":{"s":"abcdefg"}},
-{"name":"hidden-tail-best","tags":["hidden"],"args":{"s":"aabcdef"}},
-{"name":"hidden-spaces","tags":["hidden"],"args":{"s":"a b a"}}
+{"function":"longest_unique_substring","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"s":"abcabcbb"},"expected":3},
+{"name":"example-2","tags":["visible"],"args":{"s":"bbbbb"},"expected":1},
+{"name":"example-3","tags":["visible"],"args":{"s":"pwwkew"},"expected":3},
+{"name":"edge-empty","tags":["edge"],"args":{"s":""},"expected":0},
+{"name":"edge-single","tags":["edge"],"args":{"s":"a"},"expected":1},
+{"name":"hidden-abba","tags":["hidden"],"args":{"s":"abba"},"expected":2},
+{"name":"hidden-all-unique","tags":["hidden"],"args":{"s":"abcdefg"},"expected":7},
+{"name":"hidden-tail-best","tags":["hidden"],"args":{"s":"aabcdef"},"expected":6},
+{"name":"hidden-spaces","tags":["hidden"],"args":{"s":"a b a"},"expected":3},
+{"name":"random-1","tags":["hidden"],"args":{"s":"caaaaccba"},"expected":3},
+{"name":"random-2","tags":["hidden"],"args":{"s":"aadda"},"expected":2},
+{"name":"random-3","tags":["hidden"],"args":{"s":"baacac"},"expected":2},
+{"name":"random-4","tags":["hidden"],"args":{"s":"adb"},"expected":3}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 def solve(s):
     last, start, best = {}, 0, 0
     for i, ch in enumerate(s):
@@ -76,20 +70,11 @@ def solve(s):
         last[ch] = i
         best = max(best, i - start + 1)
     return best
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    return {"s": ''.join(rnd.choice("abcd") for _ in range(rnd.randint(0, 12)))}
-
-def gen_perf(n):
-    rnd = random.Random(2)
-    return {"s": ''.join(rnd.choice("abcdefghijklmnopqrstuvwxyz") for _ in range(n))}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(n) time, O(min(n, alphabet)) space
-- **Scaling check:** sizes [50000, 200000, 500000], limit 3000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.4
 - **Clarifying questions (answer verbatim):**
   - Q: Substring or subsequence?  
     A: Substring: contiguous.

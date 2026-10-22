@@ -1,7 +1,7 @@
 {
   "name": "mockinterview",
   "displayName": "Mock Interview",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Practice software-engineering interviews inside Claude Code: timed live-coding and system-design rounds run by an Interviewer persona, a Teacher for explanations, your own problems as Markdown packs, and scorecards with history.",
   "author": {
     "name": "Hiraq",
@@ -28,9 +28,15 @@
     },
     "default_language": {
       "type": "string",
-      "title": "Default solution language",
-      "description": "Language id for live-coding solutions, used when you do not name one. Built in: python, javascript, go, rust. Your own language files are listed by mi.py langs.",
+      "title": "Solution language",
+      "description": "The language you solve live-coding problems in, for example Python, Go, Rust, TypeScript or Java. Any language works: you bring the toolchain.",
       "default": "python"
+    },
+    "test_command": {
+      "type": "string",
+      "title": "Test command",
+      "description": "Optional: how your tests run in .mockinterview/work/, for example 'go test ./...', 'cargo test' or 'npx vitest run'. Leave empty and the interviewer proposes the usual one for your language.",
+      "required": false
     },
     "packs_dir": {
       "type": "directory",

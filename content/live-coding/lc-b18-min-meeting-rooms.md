@@ -5,10 +5,8 @@ type: live-coding
 level: [junior, mid]
 tags: [intervals, sorting, heap]
 time_minutes: 25
-languages: [python]
 entry: min_meeting_rooms
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: B18
@@ -32,14 +30,6 @@ Given meeting time intervals `[start, end)` with `start < end`, return the minim
 - **Example 2** - input: `{"intervals":[[7,10],[2,4]]}`  
   output: `1`
 
-## Stub
-
-```python
-def min_meeting_rooms(intervals):
-    """min_meeting_rooms(intervals: int[][2]) -> int"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -49,19 +39,23 @@ min_meeting_rooms(intervals: int[][]) -> int
 ## Tests
 
 ```json tests
-{"function":"min_meeting_rooms","kind":"func","compare":"exact","fuzz":25,"perf":{"sizes":[50000,150000,300000],"limit_ms":5000,"max_exponent":1.5},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"intervals":[[0,30],[5,10],[15,20]]}},
-{"name":"example-2","tags":["visible"],"args":{"intervals":[[7,10],[2,4]]}},
-{"name":"edge-empty","tags":["edge"],"args":{"intervals":[]}},
-{"name":"edge-touching","tags":["edge"],"args":{"intervals":[[1,2],[2,3],[3,4]]}},
-{"name":"edge-all-overlap","tags":["edge"],"args":{"intervals":[[1,9],[2,9],[3,9]]}},
-{"name":"hidden-nested","tags":["hidden"],"args":{"intervals":[[1,10],[2,3],[4,5],[6,7]]}}
+{"function":"min_meeting_rooms","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"intervals":[[0,30],[5,10],[15,20]]},"expected":2},
+{"name":"example-2","tags":["visible"],"args":{"intervals":[[7,10],[2,4]]},"expected":1},
+{"name":"edge-empty","tags":["edge"],"args":{"intervals":[]},"expected":0},
+{"name":"edge-touching","tags":["edge"],"args":{"intervals":[[1,2],[2,3],[3,4]]},"expected":1},
+{"name":"edge-all-overlap","tags":["edge"],"args":{"intervals":[[1,9],[2,9],[3,9]]},"expected":3},
+{"name":"hidden-nested","tags":["hidden"],"args":{"intervals":[[1,10],[2,3],[4,5],[6,7]]},"expected":2},
+{"name":"random-1","tags":["hidden"],"args":{"intervals":[[1,2],[0,1],[8,13],[10,12]]},"expected":2},
+{"name":"random-2","tags":["hidden"],"args":{"intervals":[[2,3],[13,18],[13,14],[8,10],[2,5]]},"expected":2},
+{"name":"random-3","tags":["hidden"],"args":{"intervals":[[7,8],[1,4],[0,5],[8,10],[11,16],[4,7]]},"expected":2},
+{"name":"random-4","tags":["hidden"],"args":{"intervals":[[0,4],[5,9],[12,15]]},"expected":1}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 def solve(intervals):
     starts = sorted(s for s, e in intervals)
     ends = sorted(e for s, e in intervals)
@@ -73,28 +67,11 @@ def solve(intervals):
         rooms += 1
         best = max(best, rooms)
     return best
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    iv = []
-    for _ in range(rnd.randint(0, 8)):
-        a = rnd.randint(0, 15)
-        iv.append([a, a + rnd.randint(1, 5)])
-    return {"intervals": iv}
-
-def gen_perf(n):
-    rnd = random.Random(18)
-    iv = []
-    for _ in range(n):
-        a = rnd.randint(0, 3 * n)
-        iv.append([a, a + rnd.randint(1, 50)])
-    return {"intervals": iv}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(n log n) time
-- **Scaling check:** sizes [50000, 150000, 300000], limit 5000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.5
 - **Clarifying questions (answer verbatim):**
   - Q: Do touching meetings share a room?  
     A: Yes: end == next start is fine.

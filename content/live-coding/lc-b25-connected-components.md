@@ -5,10 +5,8 @@ type: live-coding
 level: [junior, mid]
 tags: [graph, union-find]
 time_minutes: 20
-languages: [python]
 entry: count_components
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: B25
@@ -33,14 +31,6 @@ An undirected graph has `n` nodes numbered `0..n-1` and a list of `edges`. Retur
 - **Example 2** - input: `{"n":4,"edges":[]}`  
   output: `4`
 
-## Stub
-
-```python
-def count_components(n, edges):
-    """count_components(n: int, edges: int[][2]) -> int"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -50,18 +40,22 @@ count_components(n: int, edges: int[][]) -> int
 ## Tests
 
 ```json tests
-{"function":"count_components","kind":"func","compare":"exact","fuzz":30,"perf":{"sizes":[50000,150000,300000],"limit_ms":6000,"max_exponent":1.5},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"n":5,"edges":[[0,1],[1,2],[3,4]]}},
-{"name":"example-2","tags":["visible"],"args":{"n":4,"edges":[]}},
-{"name":"edge-zero-nodes","tags":["edge"],"args":{"n":0,"edges":[]}},
-{"name":"edge-self-loop-and-duplicates","tags":["edge"],"args":{"n":3,"edges":[[1,1],[0,2],[2,0]]}},
-{"name":"hidden-one-component","tags":["hidden"],"args":{"n":4,"edges":[[0,1],[1,2],[2,3]]}}
+{"function":"count_components","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"n":5,"edges":[[0,1],[1,2],[3,4]]},"expected":2},
+{"name":"example-2","tags":["visible"],"args":{"n":4,"edges":[]},"expected":4},
+{"name":"edge-zero-nodes","tags":["edge"],"args":{"n":0,"edges":[]},"expected":0},
+{"name":"edge-self-loop-and-duplicates","tags":["edge"],"args":{"n":3,"edges":[[1,1],[0,2],[2,0]]},"expected":2},
+{"name":"hidden-one-component","tags":["hidden"],"args":{"n":4,"edges":[[0,1],[1,2],[2,3]]},"expected":1},
+{"name":"random-1","tags":["hidden"],"args":{"n":9,"edges":[[0,1],[0,0],[4,8],[5,2]]},"expected":6},
+{"name":"random-2","tags":["hidden"],"args":{"n":5,"edges":[[0,3]]},"expected":4},
+{"name":"random-3","tags":["hidden"],"args":{"n":6,"edges":[[0,4],[0,5],[2,0]]},"expected":3},
+{"name":"random-4","tags":["hidden"],"args":{"n":3,"edges":[]},"expected":3}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 def solve(n, edges):
     parent = list(range(n))
 
@@ -77,22 +71,11 @@ def solve(n, edges):
             parent[ra] = rb
             comps -= 1
     return comps
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    n = rnd.randint(0, 9)
-    edges = [[rnd.randrange(n), rnd.randrange(n)] for _ in range(rnd.randint(0, 8))] if n else []
-    return {"n": n, "edges": edges}
-
-def gen_perf(n):
-    rnd = random.Random(225)
-    return {"n": n, "edges": [[rnd.randrange(n), rnd.randrange(n)] for _ in range(n)]}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O((n + m) * alpha(n)) with union-find; O(n + m) with BFS/DFS
-- **Scaling check:** sizes [50000, 150000, 300000], limit 6000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.5
 - **Clarifying questions (answer verbatim):**
   - Q: Are isolated nodes components?  
     A: Yes.

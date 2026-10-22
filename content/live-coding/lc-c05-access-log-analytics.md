@@ -5,10 +5,8 @@ type: live-coding
 level: [mid, senior]
 tags: [parsing, hash-map, percentiles]
 time_minutes: 40
-languages: [python]
 entry: analyze_logs
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: C5
@@ -44,14 +42,6 @@ Percentile uses the **nearest-rank** method: for `n` latencies sorted ascending,
 - **Example 1** - input: `{"lines":["2026-03-01T10:00:00Z GET /a 200 120ms","2026-03-01T10:00:01Z GET /a 500 300ms","oops","2026-03-01T10:00:02Z POST /b 201 40ms"],"p":100}`  
   output: `{"valid":3,"malformed":1,"status":{"2xx":2,"5xx":1},"slowest":[["/a",300],["/b",40]]}`
 
-## Stub
-
-```python
-def analyze_logs(lines, p):
-    """analyze_logs(lines: string[], p: int) -> {valid, malformed, status, slowest}"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -61,20 +51,27 @@ analyze_logs(lines: string[], p: int) -> record{valid: int, malformed: int, stat
 ## Tests
 
 ```json tests
-{"function":"analyze_logs","kind":"func","compare":"exact","fuzz":40,"perf":{"sizes":[30000,100000,300000],"limit_ms":5000,"max_exponent":1.5},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"lines":["2026-03-01T10:00:00Z GET /a 200 120ms","2026-03-01T10:00:01Z GET /a 500 300ms","oops","2026-03-01T10:00:02Z POST /b 201 40ms"],"p":100}},
-{"name":"edge-empty","tags":["edge"],"args":{"lines":[],"p":50}},
-{"name":"edge-all-malformed","tags":["edge"],"args":{"lines":["","x","GET /a 200 1ms"],"p":50}},
-{"name":"hidden-nearest-rank","tags":["hidden"],"args":{"lines":["2026-03-01T10:00:00Z GET /a 200 10ms","2026-03-01T10:00:00Z GET /a 200 20ms","2026-03-01T10:00:00Z GET /a 200 30ms","2026-03-01T10:00:00Z GET /a 200 40ms"],"p":50}},
-{"name":"hidden-tie-by-path","tags":["hidden"],"args":{"lines":["2026-03-01T10:00:00Z GET /b 200 5ms","2026-03-01T10:00:00Z GET /a 200 5ms"],"p":100}},
-{"name":"hidden-more-than-three-paths","tags":["hidden"],"args":{"lines":["2026-03-01T10:00:00Z GET /p0 200 0ms","2026-03-01T10:00:00Z GET /p1 200 10ms","2026-03-01T10:00:00Z GET /p2 200 20ms","2026-03-01T10:00:00Z GET /p3 200 30ms","2026-03-01T10:00:00Z GET /p4 200 40ms","2026-03-01T10:00:00Z GET /p5 200 50ms"],"p":99}},
-{"name":"hidden-trailing-space","tags":["hidden"],"args":{"lines":["2026-03-01T10:00:00Z GET /a 200 5ms "],"p":50}}
+{"function":"analyze_logs","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"lines":["2026-03-01T10:00:00Z GET /a 200 120ms","2026-03-01T10:00:01Z GET /a 500 300ms","oops","2026-03-01T10:00:02Z POST /b 201 40ms"],"p":100},"expected":{"valid":3,"malformed":1,"status":{"2xx":2,"5xx":1},"slowest":[["/a",300],["/b",40]]}},
+{"name":"edge-empty","tags":["edge"],"args":{"lines":[],"p":50},"expected":{"valid":0,"malformed":0,"status":{},"slowest":[]}},
+{"name":"edge-all-malformed","tags":["edge"],"args":{"lines":["","x","GET /a 200 1ms"],"p":50},"expected":{"valid":0,"malformed":3,"status":{},"slowest":[]}},
+{"name":"hidden-nearest-rank","tags":["hidden"],"args":{"lines":["2026-03-01T10:00:00Z GET /a 200 10ms","2026-03-01T10:00:00Z GET /a 200 20ms","2026-03-01T10:00:00Z GET /a 200 30ms","2026-03-01T10:00:00Z GET /a 200 40ms"],"p":50},"expected":{"valid":4,"malformed":0,"status":{"2xx":4},"slowest":[["/a",20]]}},
+{"name":"hidden-tie-by-path","tags":["hidden"],"args":{"lines":["2026-03-01T10:00:00Z GET /b 200 5ms","2026-03-01T10:00:00Z GET /a 200 5ms"],"p":100},"expected":{"valid":2,"malformed":0,"status":{"2xx":2},"slowest":[["/a",5],["/b",5]]}},
+{"name":"hidden-more-than-three-paths","tags":["hidden"],"args":{"lines":["2026-03-01T10:00:00Z GET /p0 200 0ms","2026-03-01T10:00:00Z GET /p1 200 10ms","2026-03-01T10:00:00Z GET /p2 200 20ms","2026-03-01T10:00:00Z GET /p3 200 30ms","2026-03-01T10:00:00Z GET /p4 200 40ms","2026-03-01T10:00:00Z GET /p5 200 50ms"],"p":99},"expected":{"valid":6,"malformed":0,"status":{"2xx":6},"slowest":[["/p5",50],["/p4",40],["/p3",30]]}},
+{"name":"hidden-trailing-space","tags":["hidden"],"args":{"lines":["2026-03-01T10:00:00Z GET /a 200 5ms "],"p":50},"expected":{"valid":0,"malformed":1,"status":{},"slowest":[]}},
+{"name":"random-1","tags":["hidden"],"args":{"lines":["garbage","","2026-03-08T10:22:00Z PUT / 301 91ms extra","2026-03-02T10:31:00Z GET a 404 284ms","2026-03-08T10:46:00Z PUT /e 200 122ms","2026-03-05T10:50:00Z PUT /e 200 782ms"],"p":90},"expected":{"valid":2,"malformed":4,"status":{"2xx":2},"slowest":[["/e",782]]}},
+{"name":"random-2","tags":["hidden"],"args":{"lines":["2026-03-09T10:10:00Z GET / 200 329","2026-03-08T10:08:00Z POST /b 201 327ms","2026-03-04T10:57:00Z POST /a 201 96ms","2026-03-05T10:18:00Z POST  503 739ms","2026-03-09T10:09:00Z POST / 500 595ms","2026-03-06T10:25:00Z PUT / 500 499","2026-03-08T10:52:00Z GET /e 500 638ms"],"p":90},"expected":{"valid":4,"malformed":3,"status":{"2xx":2,"5xx":2},"slowest":[["/e",638],["/",595],["/b",327]]}},
+{"name":"random-3","tags":["hidden"],"args":{"lines":["2026-03-09T10:10:00Z POST /b 404 289ms","2026-03-04T10:34:00Z GET /b 200 666ms","2026-03-02 10:01:00Z POS  /a 404 333ms","2026-03-02T10:37:00Z POST /c/d 301 547ms","2026-03-08T10:53:00Z POST / 201 760ms","2026-03-06T10:08:00Z POST / 503 721ms","2026-03-03 10:48:00Z GE  / 200 80ms","2026-03-02T10:08:00Z PUT / 201 281ms"],"p":99},"expected":{"valid":6,"malformed":2,"status":{"4xx":1,"2xx":3,"3xx":1,"5xx":1},"slowest":[["/",760],["/b",666],["/c/d",547]]}},
+{"name":"random-4","tags":["hidden"],"args":{"lines":["2026-03-05T10:20:00Z POST /e 500 91ms","2026-03-03T10:18:00Z PUT / 503 413ms","2026-03-08 10:16:00Z GE  /a 301 44ms","2026-03-02T10:09:00Z GET /c/d 503 302ms"],"p":90},"expected":{"valid":3,"malformed":1,"status":{"5xx":3},"slowest":[["/",413],["/c/d",302],["/e",91]]}}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
+import re
+from collections import Counter, defaultdict
+
 def solve(lines, p):
     LOG_RE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z (GET|POST|PUT|DELETE|PATCH) (/\S*) ([1-5][0-9][0-9]) ([0-9]+)ms")
     valid = malformed = 0
@@ -96,30 +93,11 @@ def solve(lines, p):
     ranked.sort()
     return {"valid": valid, "malformed": malformed, "status": dict(status),
             "slowest": [[path, -neg] for neg, path in ranked[:3]]}
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    lines = []
-    for _ in range(rnd.randint(0, 25)):
-        r = rnd.random()
-        path = rnd.choice(["/a", "/b", "/c/d", "/e", "/"])
-        line = "2026-03-0%dT10:%02d:00Z %s %s %d %dms" % (rnd.randint(1, 9), rnd.randint(0, 59), rnd.choice(["GET", "POST", "PUT"]), path,
-                                                        rnd.choice([200, 201, 301, 404, 500, 503]), rnd.randint(1, 900))
-        if r < 0.2:
-            line = rnd.choice([line[:-2], line + " extra", "", "garbage", line.replace("T", " "), line.replace("GET", "get"), line.replace(" /", " ")])
-        lines.append(line)
-    return {"lines": lines, "p": rnd.choice([50, 90, 95, 99, 100, 1])}
-
-def gen_perf(n):
-    rnd = random.Random(105)
-    lines = ["2026-03-01T10:00:00Z GET /p%d %d %dms" % (rnd.randint(0, 200), rnd.choice([200, 404, 500]), rnd.randint(1, 5000)) for _ in range(n)]
-    return {"lines": lines, "p": 95}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(n log n) because of per-path sorting
-- **Scaling check:** sizes [30000, 100000, 300000], limit 5000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.5
 - **Clarifying questions (answer verbatim):**
   - Q: Is `/` a valid path?  
     A: Yes.

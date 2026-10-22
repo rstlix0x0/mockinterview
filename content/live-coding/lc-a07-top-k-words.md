@@ -5,10 +5,8 @@ type: live-coding
 level: [junior]
 tags: [hash-map, sorting, strings]
 time_minutes: 15
-languages: [python]
 entry: top_words
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: A7
@@ -33,14 +31,6 @@ Tokenize `text` into words after lowercasing: a word is a maximal run of charact
 - **Example 2** - input: `{"text":"it's it's its","k":5}`  
   output: `[["it's",2],["its",1]]`
 
-## Stub
-
-```python
-def top_words(text, k):
-    """top_words(text: string, k: int) -> [string, int][]"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -50,30 +40,32 @@ top_words(text: string, k: int) -> [string, int][]
 ## Tests
 
 ```json tests
-{"function":"top_words","kind":"func","compare":"exact","fuzz":6,"cases":[
-{"name":"example-1","tags":["visible"],"args":{"text":"The cat and the hat. The end!","k":2}},
-{"name":"example-2","tags":["visible"],"args":{"text":"it's it's its","k":5}},
-{"name":"edge-empty-text","tags":["edge"],"args":{"text":"","k":3}},
-{"name":"edge-k-zero","tags":["edge"],"args":{"text":"a b c","k":0}},
-{"name":"hidden-tie-break","tags":["hidden"],"args":{"text":"b a c b a c","k":3}},
-{"name":"hidden-digits-punct","tags":["hidden"],"args":{"text":"x1,x1;X2 ... x1","k":2}},
-{"name":"hidden-non-ascii-separates","tags":["hidden"],"args":{"text":"café cafe","k":5}}
+{"function":"top_words","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"text":"The cat and the hat. The end!","k":2},"expected":[["the",3],["and",1]]},
+{"name":"example-2","tags":["visible"],"args":{"text":"it's it's its","k":5},"expected":[["it's",2],["its",1]]},
+{"name":"edge-empty-text","tags":["edge"],"args":{"text":"","k":3},"expected":[]},
+{"name":"edge-k-zero","tags":["edge"],"args":{"text":"a b c","k":0},"expected":[]},
+{"name":"hidden-tie-break","tags":["hidden"],"args":{"text":"b a c b a c","k":3},"expected":[["a",2],["b",2],["c",2]]},
+{"name":"hidden-digits-punct","tags":["hidden"],"args":{"text":"x1,x1;X2 ... x1","k":2},"expected":[["x1",3],["x2",1]]},
+{"name":"hidden-non-ascii-separates","tags":["hidden"],"args":{"text":"café cafe","k":5},"expected":[["caf",1],["cafe",1]]},
+{"name":"random-1","tags":["hidden"],"args":{"text":"it's the a the the it's x1 Cat a","k":4},"expected":[["the",3],["a",2],["it's",2],["cat",1]]},
+{"name":"random-2","tags":["hidden"],"args":{"text":"a a THE THE a","k":4},"expected":[["a",3],["the",2]]},
+{"name":"random-3","tags":["hidden"],"args":{"text":"dog a the x1 the it's","k":1},"expected":[["the",2]]},
+{"name":"random-4","tags":["hidden"],"args":{"text":"the THE Cat","k":3},"expected":[["the",2],["cat",1]]}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
+import re
+from collections import Counter
+
 def solve(text, k):
     words = re.findall(r"[a-z0-9']+", text.lower())
     c = Counter(words)
     ranked = sorted(c.items(), key=lambda kv: (-kv[1], kv[0]))
     return [[w, n] for w, n in ranked[:k]]
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    vocab = ["the", "a", "Cat", "dog", "it's", "x1", "THE", "dog."]
-    return {"text": ' '.join(rnd.choice(vocab) for _ in range(rnd.randint(0, 12))), "k": rnd.randint(0, 4)}
 ```
 
 ## Interviewer notes

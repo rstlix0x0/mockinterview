@@ -5,10 +5,8 @@ type: live-coding
 level: [junior, mid]
 tags: [heap, design]
 time_minutes: 30
-languages: [python]
 entry: MedianFinder
 kind: ops
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: B12
@@ -30,23 +28,6 @@ Design `MedianFinder`: `add_num(x)` adds an integer to a growing collection and 
 - **Example 1** - calls: `MedianFinder(); add_num(1); add_num(2); find_median(); add_num(3); find_median()`  
   returns: `[null,null,null,1.5,null,2.0]`
 
-## Stub
-
-```python
-class MedianFinder:
-    def __init__(self):
-        """No constructor arguments."""
-        pass
-
-    def add_num(self, x):
-        """add_num(x: int) -> void"""
-        raise NotImplementedError
-
-    def find_median(self):
-        """find_median() -> float"""
-        raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -58,17 +39,23 @@ find_median() -> float
 ## Tests
 
 ```json tests
-{"function":"MedianFinder","kind":"ops","compare":"approx","fuzz":20,"perf":{"sizes":[20000,100000,200000],"limit_ms":4000,"max_exponent":1.4},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"calls":[["MedianFinder",[]],["add_num",[1]],["add_num",[2]],["find_median",[]],["add_num",[3]],["find_median",[]]]}},
-{"name":"edge-single","tags":["edge"],"args":{"calls":[["MedianFinder",[]],["add_num",[-5]],["find_median",[]]]}},
-{"name":"hidden-duplicates","tags":["hidden"],"args":{"calls":[["MedianFinder",[]],["add_num",[4]],["add_num",[4]],["add_num",[4]],["find_median",[]]]}},
-{"name":"hidden-descending","tags":["hidden"],"args":{"calls":[["MedianFinder",[]],["add_num",[9]],["add_num",[7]],["find_median",[]],["add_num",[5]],["add_num",[3]],["find_median",[]]]}}
+{"function":"MedianFinder","kind":"ops","compare":"approx","cases":[
+{"name":"example-1","tags":["visible"],"args":{"calls":[["MedianFinder",[]],["add_num",[1]],["add_num",[2]],["find_median",[]],["add_num",[3]],["find_median",[]]]},"expected":[null,null,null,1.5,null,2.0]},
+{"name":"edge-single","tags":["edge"],"args":{"calls":[["MedianFinder",[]],["add_num",[-5]],["find_median",[]]]},"expected":[null,null,-5.0]},
+{"name":"hidden-duplicates","tags":["hidden"],"args":{"calls":[["MedianFinder",[]],["add_num",[4]],["add_num",[4]],["add_num",[4]],["find_median",[]]]},"expected":[null,null,null,null,4.0]},
+{"name":"hidden-descending","tags":["hidden"],"args":{"calls":[["MedianFinder",[]],["add_num",[9]],["add_num",[7]],["find_median",[]],["add_num",[5]],["add_num",[3]],["find_median",[]]]},"expected":[null,null,null,8.0,null,null,6.0]},
+{"name":"random-1","tags":["hidden"],"args":{"calls":[["MedianFinder",[]],["add_num",[-1]],["add_num",[-13]],["add_num",[20]],["add_num",[-4]],["add_num",[12]],["find_median",[]],["add_num",[-14]],["add_num",[16]],["find_median",[]],["find_median",[]],["find_median",[]],["find_median",[]]]},"expected":[null,null,null,null,null,null,-1.0,null,null,-1.0,-1.0,-1.0,-1.0]},
+{"name":"random-2","tags":["hidden"],"args":{"calls":[["MedianFinder",[]],["add_num",[-16]],["add_num",[-13]],["add_num",[6]],["add_num",[15]],["find_median",[]],["find_median",[]],["find_median",[]],["find_median",[]]]},"expected":[null,null,null,null,null,-3.5,-3.5,-3.5,-3.5]},
+{"name":"random-3","tags":["hidden"],"args":{"calls":[["MedianFinder",[]],["add_num",[-6]],["find_median",[]],["find_median",[]],["add_num",[-20]],["add_num",[-3]],["add_num",[-5]],["find_median",[]],["add_num",[2]],["find_median",[]]]},"expected":[null,null,-6.0,-6.0,null,null,null,-5.5,null,-5.0]},
+{"name":"random-4","tags":["hidden"],"args":{"calls":[["MedianFinder",[]],["add_num",[-20]],["add_num",[6]],["find_median",[]],["add_num",[-4]],["add_num",[5]],["find_median",[]]]},"expected":[null,null,null,-7.0,null,null,0.5]}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
+import heapq
+
 class MedianFinder:
     def __init__(self):
         self.lo, self.hi = [], []
@@ -83,35 +70,11 @@ class MedianFinder:
         if len(self.lo) > len(self.hi):
             return float(-self.lo[0])
         return (-self.lo[0] + self.hi[0]) / 2
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    calls = [["MedianFinder", []]]
-    adds = 0
-    for _ in range(rnd.randint(2, 14)):
-        if adds and rnd.random() < 0.4:
-            calls.append(["find_median", []])
-        else:
-            calls.append(["add_num", [rnd.randint(-20, 20)]])
-            adds += 1
-    if adds:
-        calls.append(["find_median", []])
-    return {"calls": calls}
-
-def gen_perf(n):
-    rnd = random.Random(12)
-    calls = [["MedianFinder", []]]
-    for i in range(n):
-        calls.append(["add_num", [rnd.randint(-10**6, 10**6)]])
-        if i % 4 == 3:
-            calls.append(["find_median", []])
-    return {"calls": calls}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(log n) per add, O(1) per median
-- **Scaling check:** sizes [20000, 100000, 200000], limit 4000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.4
 - **Clarifying questions (answer verbatim):**
   - Q: Return type?  
     A: A float. 2.0 and 2 compare equal in the checker.

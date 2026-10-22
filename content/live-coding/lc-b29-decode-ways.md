@@ -5,10 +5,8 @@ type: live-coding
 level: [junior, mid]
 tags: [dynamic-programming, strings]
 time_minutes: 25
-languages: [python]
 entry: decode_ways
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: B29
@@ -35,14 +33,6 @@ A message of letters was encoded with `A=1, B=2, ... Z=26`. Given the digit stri
 - **Example 3** - input: `{"s":"06"}`  
   output: `0`
 
-## Stub
-
-```python
-def decode_ways(s):
-    """decode_ways(s: string) -> int"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -52,22 +42,26 @@ decode_ways(s: string) -> int
 ## Tests
 
 ```json tests
-{"function":"decode_ways","kind":"func","compare":"exact","fuzz":40,"cases":[
-{"name":"example-1","tags":["visible"],"args":{"s":"12"}},
-{"name":"example-2","tags":["visible"],"args":{"s":"226"}},
-{"name":"example-3","tags":["visible"],"args":{"s":"06"}},
-{"name":"edge-empty","tags":["edge"],"args":{"s":""}},
-{"name":"edge-zero","tags":["edge"],"args":{"s":"0"}},
-{"name":"edge-ten","tags":["edge"],"args":{"s":"10"}},
-{"name":"hidden-twenty-seven","tags":["hidden"],"args":{"s":"27"}},
-{"name":"hidden-double-zero","tags":["hidden"],"args":{"s":"100"}},
-{"name":"hidden-long","tags":["hidden"],"args":{"s":"111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"}}
+{"function":"decode_ways","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"s":"12"},"expected":2},
+{"name":"example-2","tags":["visible"],"args":{"s":"226"},"expected":3},
+{"name":"example-3","tags":["visible"],"args":{"s":"06"},"expected":0},
+{"name":"edge-empty","tags":["edge"],"args":{"s":""},"expected":0},
+{"name":"edge-zero","tags":["edge"],"args":{"s":"0"},"expected":0},
+{"name":"edge-ten","tags":["edge"],"args":{"s":"10"},"expected":1},
+{"name":"hidden-twenty-seven","tags":["hidden"],"args":{"s":"27"},"expected":1},
+{"name":"hidden-double-zero","tags":["hidden"],"args":{"s":"100"},"expected":0},
+{"name":"hidden-long","tags":["hidden"],"args":{"s":"111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"},"expected":4660046610375530309},
+{"name":"random-1","tags":["hidden"],"args":{"s":"211812232"},"expected":25},
+{"name":"random-2","tags":["hidden"],"args":{"s":"12244"},"expected":5},
+{"name":"random-3","tags":["hidden"],"args":{"s":"954112"},"expected":3},
+{"name":"random-4","tags":["hidden"],"args":{"s":"222"},"expected":3}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 def solve(s):
     if not s:
         return 0
@@ -81,10 +75,6 @@ def solve(s):
         if 10 <= int(s[i - 2:i]) <= 26:
             dp[i] += dp[i - 2]
     return dp[n]
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    return {"s": ''.join(rnd.choice("0123456789" if rnd.random() < 0.3 else "12") for _ in range(rnd.randint(0, 12)))}
 ```
 
 ## Interviewer notes

@@ -5,10 +5,8 @@ type: live-coding
 level: [junior]
 tags: [design, stack]
 time_minutes: 15
-languages: [python]
 entry: MinStack
 kind: ops
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: A16
@@ -32,31 +30,6 @@ Design `MinStack`: `push(x)`, `pop()` (removes and returns the top), `top()` (re
 
 ---
 
-## Stub
-
-```python
-class MinStack:
-    def __init__(self):
-        """No constructor arguments."""
-        pass
-
-    def push(self, x):
-        """push(x: int)"""
-        raise NotImplementedError
-
-    def pop(self):
-        """pop() -> int"""
-        raise NotImplementedError
-
-    def top(self):
-        """top() -> int"""
-        raise NotImplementedError
-
-    def get_min(self):
-        """get_min() -> int"""
-        raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -70,16 +43,20 @@ get_min() -> int
 ## Tests
 
 ```json tests
-{"function":"MinStack","kind":"ops","compare":"exact","fuzz":25,"perf":{"sizes":[50000,150000,300000],"limit_ms":3000,"max_exponent":1.4},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"calls":[["MinStack",[]],["push",[3]],["push",[1]],["push",[2]],["get_min",[]],["pop",[]],["get_min",[]],["top",[]]]}},
-{"name":"edge-duplicates-of-min","tags":["edge"],"args":{"calls":[["MinStack",[]],["push",[1]],["push",[1]],["pop",[]],["get_min",[]]]}},
-{"name":"hidden-min-restored","tags":["hidden"],"args":{"calls":[["MinStack",[]],["push",[5]],["push",[2]],["push",[9]],["pop",[]],["pop",[]],["get_min",[]]]}}
+{"function":"MinStack","kind":"ops","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"calls":[["MinStack",[]],["push",[3]],["push",[1]],["push",[2]],["get_min",[]],["pop",[]],["get_min",[]],["top",[]]]},"expected":[null,null,null,null,1,2,1,1]},
+{"name":"edge-duplicates-of-min","tags":["edge"],"args":{"calls":[["MinStack",[]],["push",[1]],["push",[1]],["pop",[]],["get_min",[]]]},"expected":[null,null,null,1,1]},
+{"name":"hidden-min-restored","tags":["hidden"],"args":{"calls":[["MinStack",[]],["push",[5]],["push",[2]],["push",[9]],["pop",[]],["pop",[]],["get_min",[]]]},"expected":[null,null,null,null,9,2,5]},
+{"name":"random-1","tags":["hidden"],"args":{"calls":[["MinStack",[]],["push",[-1]],["get_min",[]],["top",[]],["top",[]],["top",[]],["pop",[]],["push",[3]],["push",[-4]],["top",[]],["pop",[]],["top",[]],["get_min",[]],["push",[-2]],["get_min",[]],["push",[4]],["push",[3]],["pop",[]],["top",[]],["top",[]],["push",[1]],["top",[]],["get_min",[]]]},"expected":[null,null,-1,-1,-1,-1,-1,null,null,-4,-4,3,3,null,-2,null,null,3,4,4,null,1,-2]},
+{"name":"random-2","tags":["hidden"],"args":{"calls":[["MinStack",[]],["push",[-4]],["push",[1]],["pop",[]],["pop",[]],["push",[-1]],["push",[-1]],["push",[0]],["pop",[]],["get_min",[]],["push",[2]],["top",[]],["pop",[]],["pop",[]],["push",[2]],["push",[4]]]},"expected":[null,null,null,1,-4,null,null,null,0,-1,null,2,2,-1,null,null]},
+{"name":"random-3","tags":["hidden"],"args":{"calls":[["MinStack",[]],["push",[4]],["push",[0]],["push",[-1]],["top",[]],["top",[]],["push",[4]],["push",[0]],["pop",[]],["push",[-1]],["push",[5]],["push",[-2]],["push",[4]],["push",[3]],["push",[-5]],["push",[-1]],["push",[-4]]]},"expected":[null,null,null,null,-1,-1,null,null,0,null,null,null,null,null,null,null,null]},
+{"name":"random-4","tags":["hidden"],"args":{"calls":[["MinStack",[]],["push",[-3]],["push",[-1]],["push",[-1]],["pop",[]],["push",[-4]],["push",[5]],["get_min",[]],["get_min",[]],["get_min",[]],["push",[4]]]},"expected":[null,null,null,null,-1,null,null,-4,-4,-4,null]}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 class MinStack:
     def __init__(self):
         self.items, self.mins = [], []
@@ -97,42 +74,11 @@ class MinStack:
 
     def get_min(self):
         return self.mins[-1]
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    calls, size = [["MinStack", []]], 0
-    for _ in range(rnd.randint(4, 25)):
-        c = rnd.random()
-        if size == 0 or c < 0.45:
-            calls.append(["push", [rnd.randint(-5, 5)]]); size += 1
-        elif c < 0.65:
-            calls.append(["pop", []]); size -= 1
-        elif c < 0.85:
-            calls.append(["top", []])
-        else:
-            calls.append(["get_min", []])
-    return {"calls": calls}
-
-def gen_perf(n):
-    rnd = random.Random(216)
-    calls, size = [["MinStack", []]], 0
-    for _ in range(n):
-        c = rnd.random()
-        if size == 0 or c < 0.5:
-            calls.append(["push", [rnd.randint(-10**9, 10**9)]]); size += 1
-        elif c < 0.75:
-            calls.append(["pop", []]); size -= 1
-        elif c < 0.9:
-            calls.append(["top", []])
-        else:
-            calls.append(["get_min", []])
-    return {"calls": calls}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(1) per operation, O(n) space
-- **Scaling check:** sizes [50000, 150000, 300000], limit 3000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.4
 - **Clarifying questions (answer verbatim):**
   - Q: Is `pop` expected to return the value?  
     A: Yes.

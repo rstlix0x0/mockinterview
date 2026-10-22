@@ -5,10 +5,8 @@ type: live-coding
 level: [junior, mid]
 tags: [sorting, intervals]
 time_minutes: 20
-languages: [python]
 entry: merge_intervals
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: B2
@@ -33,14 +31,6 @@ Merge all overlapping closed intervals and return the result sorted by start. In
 - **Example 2** - input: `{"intervals":[[1,4],[4,5]]}`  
   output: `[[1,5]]`
 
-## Stub
-
-```python
-def merge_intervals(intervals):
-    """merge_intervals(intervals: int[][2]) -> int[][2]"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -50,20 +40,24 @@ merge_intervals(intervals: int[][]) -> int[][]
 ## Tests
 
 ```json tests
-{"function":"merge_intervals","kind":"func","compare":"exact","fuzz":15,"perf":{"sizes":[20000,100000,200000],"limit_ms":5000,"max_exponent":1.5},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"intervals":[[1,3],[2,6],[8,10],[15,18]]}},
-{"name":"example-2","tags":["visible"],"args":{"intervals":[[1,4],[4,5]]}},
-{"name":"edge-empty","tags":["edge"],"args":{"intervals":[]}},
-{"name":"edge-single","tags":["edge"],"args":{"intervals":[[5,5]]}},
-{"name":"hidden-nested","tags":["hidden"],"args":{"intervals":[[1,10],[2,3],[4,5]]}},
-{"name":"hidden-unsorted","tags":["hidden"],"args":{"intervals":[[8,9],[1,2],[2,8]]}},
-{"name":"hidden-point-intervals","tags":["hidden"],"args":{"intervals":[[3,3],[3,3],[4,4]]}}
+{"function":"merge_intervals","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"intervals":[[1,3],[2,6],[8,10],[15,18]]},"expected":[[1,6],[8,10],[15,18]]},
+{"name":"example-2","tags":["visible"],"args":{"intervals":[[1,4],[4,5]]},"expected":[[1,5]]},
+{"name":"edge-empty","tags":["edge"],"args":{"intervals":[]},"expected":[]},
+{"name":"edge-single","tags":["edge"],"args":{"intervals":[[5,5]]},"expected":[[5,5]]},
+{"name":"hidden-nested","tags":["hidden"],"args":{"intervals":[[1,10],[2,3],[4,5]]},"expected":[[1,10]]},
+{"name":"hidden-unsorted","tags":["hidden"],"args":{"intervals":[[8,9],[1,2],[2,8]]},"expected":[[1,9]]},
+{"name":"hidden-point-intervals","tags":["hidden"],"args":{"intervals":[[3,3],[3,3],[4,4]]},"expected":[[3,3],[4,4]]},
+{"name":"random-1","tags":["hidden"],"args":{"intervals":[[0,0],[11,11],[10,10],[4,8]]},"expected":[[0,0],[4,8],[10,10],[11,11]]},
+{"name":"random-2","tags":["hidden"],"args":{"intervals":[[1,1],[6,10],[6,6],[8,10],[2,2]]},"expected":[[1,1],[2,2],[6,10]]},
+{"name":"random-3","tags":["hidden"],"args":{"intervals":[[3,3],[9,9],[11,13],[0,4],[4,5],[5,9]]},"expected":[[0,9],[11,13]]},
+{"name":"random-4","tags":["hidden"],"args":{"intervals":[[0,3],[2,5],[6,8]]},"expected":[[0,5],[6,8]]}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 def solve(intervals):
     out = []
     for s, e in sorted(intervals):
@@ -72,28 +66,11 @@ def solve(intervals):
         else:
             out.append([s, e])
     return out
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    iv = []
-    for _ in range(rnd.randint(0, 7)):
-        a = rnd.randint(0, 12)
-        iv.append([a, a + rnd.randint(0, 4)])
-    return {"intervals": iv}
-
-def gen_perf(n):
-    rnd = random.Random(3)
-    iv = []
-    for _ in range(n):
-        a = rnd.randint(0, 10 * n)
-        iv.append([a, a + rnd.randint(0, 20)])
-    return {"intervals": iv}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(n log n) time
-- **Scaling check:** sizes [20000, 100000, 200000], limit 5000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.5
 - **Clarifying questions (answer verbatim):**
   - Q: Closed or half-open intervals?  
     A: Closed. Touching intervals merge.

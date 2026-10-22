@@ -6,7 +6,7 @@ argument-hint: "[live-coding | system-design | knowledge] [title]"
 
 # Pack author
 
-You help the engineer write one pack file that the runner can draw, run and score. A pack is one Markdown file with frontmatter and fixed sections. The spec is `${CLAUDE_PLUGIN_ROOT}/docs/authoring.md`: read it with the Read tool before you draft anything, and follow it exactly. If it and this skill ever disagree, the spec wins.
+You help the engineer write one pack file that the runner can draw and score, and the interviewer can test in any language. A pack is one Markdown file with frontmatter and fixed sections. The spec is `${CLAUDE_PLUGIN_ROOT}/docs/authoring.md`: read it with the Read tool before you draft anything, and follow it exactly. If it and this skill ever disagree, the spec wins.
 
 ## Calling the runner
 
@@ -18,7 +18,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/runner/mi.py" --data "${CLAUDE_PLUGIN_DATA}" COMM
 
 - Extra pack folder from the plugin options: `${user_config.packs_dir}`. If that is a real absolute path, add `--root "<that path>"` to every call. If it is empty or still looks like a placeholder, leave `--root` out.
 - Every command prints one JSON object. Parse it. If `ok` is false, read `error` and `code` and fix the cause.
-- Commands you use: `list`, `list --roots`, `lint`, `selftest`, `trust`.
+- Commands you use: `list`, `list --roots`, `lint`, `selftest`.
 
 ## Step 1: what and where
 
@@ -45,12 +45,11 @@ Write the whole file with the Write tool, then show them a short summary (not th
 
 ### Live coding
 
-- **Frontmatter**: all fields in the spec. `runs_code` must be `true`. `entry` is the function or class name; `kind` is `func` or `ops`.
+- **Frontmatter**: all fields in the spec. `entry` is the function or class name (snake_case for functions); `kind` is `func` or `ops`.
 - **`## Statement`**: the problem as an interviewer says it: description, a `Signature` line, `Constraints`, two or three `Examples` with input and output. Everything the engineer must see, nothing they must not.
-- **`## Stub`**: one `python` fence: the function or class with the right signature, a docstring, and `pass`.
-- **`## Signature`**: one `signature` fence with the JSON types of the inputs and outputs, using the stub's names: `name(param: type, ...) -> type` for `func`; for `ops` the constructor line `ClassName(param: type)` then one line per method (`-> void` when it returns nothing). Types: `int`, `float`, `bool`, `string`, `T[]`, `T?`, `[A, B]`, `{string: T}`, `record{a: T, b?: U}`, `A | B` (grammar in the authoring spec). Use the types the tests really use; avoid `|` where a single type works.
-- **`## Tests`**: one `json tests` fence in the shape in the spec. Aim for at least 2 `visible` cases (the examples), 3 `edge` cases (empty, single, duplicates, limits) and 3 `hidden` cases (the traps), `fuzz` of 6 or more, and a `perf` block if the problem has a complexity target. Each case has exactly one tag. Expected values are not stored.
-- **`## Oracle`**: one `python oracle` fence: a correct reference solution (`solve(**args)` for `func`; the class for `ops`), `gen_random(seed)` returning a small random `args`, and `gen_perf(n)` if `perf` exists. Keep the oracle simple and obviously right; speed matters less than clarity, except for the perf generator.
+- **`## Signature`**: one `signature` fence with the language-neutral types of the inputs and outputs: `name(param: type, ...) -> type` for `func`; for `ops` the constructor line `ClassName(param: type)` then one line per method (`-> void` when it returns nothing). Types: `int`, `float`, `bool`, `string`, `T[]`, `T?`, `[A, B]`, `{string: T}`, `record{a: T, b?: U}`, `A | B` (notation in the authoring spec). The interviewer writes each engineer's stub from it, so use the types the tests really use and avoid `|` where a single type works.
+- **`## Tests`**: one `json tests` fence in the shape in the spec. Aim for at least 2 `visible` cases (the examples), 3 `edge` cases (empty, single, duplicates, limits) and 4 or more `hidden` cases (the traps, plus a few random small inputs). Each case has exactly one tag and an `expected` value; leave `expected` out while drafting, `selftest --write-expected` fills it in from the reference solution.
+- **`## Reference solution`**: one `python reference` fence: a correct, self-contained solution (`solve(**args)` for `func`; the class for `ops`) with its own imports. Keep it simple and obviously right; it is what teach mode and the debrief walk through, and what the expected values come from.
 - **`## Interviewer notes`**: use these `###` headings so the runner can slice them: `### Clarifying questions` (question and answer pairs), `### Hint ladder` (lines in the exact shape `- H0 (free): ...`, `- H1 (-5): ...`, `- H2 (-10): ...`, `- H3 (-20): ...`), `### Follow-ups`, `### Traps` (the mistakes the tests are built to catch).
 
 ### System design
@@ -70,10 +69,12 @@ Run `lint PATH` with the path of the new file. Fix every error, then run it agai
 
 ## Step 4: self-test (live coding only)
 
-1. A pack outside the built-in root is untrusted until acknowledged. Explain in two sentences: "the oracle is Python that runs on your machine; you wrote it with me, so you can trust it, but a teammate's pack deserves a read first." Ask, then run `trust ROOT` with the root you chose.
-2. Run `selftest ID`. It runs the oracle against its own tests. If something fails: a failing visible case usually means a wrong example in the statement; a failing hidden case usually means a wrong test; fix the pack, not the runner. `signature_errors` mean the signature and the oracle's real values disagree: fix whichever is wrong. Run it again until it ends with every case passing.
-3. If the pack has a `perf` block, run `selftest ID --perf` once and check that the limits are realistic for a plain Python solution.
-4. Optional but valuable: write a deliberately naive solution (the brute force) into the work file (`.mockinterview/work/solution.py` for Python) via `/mockinterview:practice` and confirm the right tests fail it: that proves the tests catch what they claim to catch.
+`selftest` runs the reference solution (Python, on this machine) against the stored expected values. It is the only time pack code runs; a session never runs it. A teammate's pack deserves a read before you run its selftest.
+
+1. Run `selftest ID --write-expected`. It sets every case's `expected` from the reference solution and rewrites the tests block.
+2. Check the visible cases against the examples in the statement by eye: they must agree. A disagreement means a wrong example or a wrong reference; fix the pack, then run step 1 again.
+3. Run `selftest ID` and confirm every case passes.
+4. Optional but valuable: run `/mockinterview:practice ID`, write a deliberately naive solution (the brute force) and confirm the right tests fail it: that proves the tests catch what they claim to catch.
 
 ## Step 5: finish
 
@@ -82,8 +83,8 @@ Tell the engineer, in a few lines: the file path, the id, that `list` shows it a
 ## Quality checklist (check before you say it is done)
 
 - The statement can be solved without reading any hidden section.
-- Examples in the statement are the `visible` cases and agree with the oracle.
-- Hidden cases test something specific (an edge, a trap), not just bigger inputs.
+- Examples in the statement are the `visible` cases and agree with the reference solution.
+- Hidden cases test something specific (an edge, a trap), not just bigger inputs. Keep each case small enough to read: there is no timing test, so a large input adds nothing.
 - The hint ladder never contains code.
 - The `source` field is honest.
 - The id is unique and will not change later (history is keyed by it).

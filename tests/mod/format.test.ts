@@ -45,7 +45,7 @@ test('Problem tab: no session', async () => {
   expect(scorecardBlocks(null)[0]?.text).toBe(NO_SESSION)
 })
 
-test('header names the solution language when the session has one', async () => {
+test('header names the language when the session has one', async () => {
   expect(problemBlocks(session({ language: 'python' }), null)[0]?.text).toBe(
     'interview, senior, round 1 of 2, running, python',
   )
@@ -99,7 +99,7 @@ test('Results tab: no run yet, code and design rounds', async () => {
   expect(texts(resultsBlocks(design))).toContain('Design round: no tests')
 })
 
-test('Results tab: counts, categories, perf, shown and hidden failures, hints', async () => {
+test('Results tab: counts, categories, shown and hidden failures, hints', async () => {
   const s = session(
     {},
     {
@@ -112,7 +112,6 @@ test('Results tab: counts, categories, perf, shown and hidden failures, hints', 
         failed: 2,
         total: 17,
         by_category: { visible: '3/3', edge: '3/4', hidden: '6/7' },
-        perf: { ran: true, ok: true, lines: ['n=20000 120 ms (limit 3000 ms) ok'] },
         failures: [
           { name: 'edge-dup', category: 'edge', shown: true, args: '{"nums":[3,3]}', expected: '[0,1]', got: '[]' },
           { name: 'h1', category: 'hidden', shown: false },
@@ -126,12 +125,29 @@ test('Results tab: counts, categories, perf, shown and hidden failures, hints', 
   expect(blocks.find(b => b.text.startsWith('15 of 17'))?.kind).toBe('bad')
   expect(all).toContain('visible: 3/3')
   expect(all).toContain('hidden: 6/7')
-  expect(all).toContain('perf n=20000')
   expect(all).toContain('FAIL edge-dup [edge]')
   expect(all).toContain('expected: [0,1]')
   expect(all).toContain('Hints used: H0 (0), H1 (-5)')
   expect(all).toContain('1 failing case is not shown during an interview.')
   expect(all).not.toContain('FAIL h1')
+})
+
+test('Results tab: a recorded build error is shown', async () => {
+  const s = session(
+    {},
+    {
+      last_run: {
+        passed: 0,
+        failed: 2,
+        total: 2,
+        by_category: { visible: '0/2' },
+        failures: [],
+        error: './solution.go:3:2: undefined: seen',
+      },
+    },
+  )
+  const blocks = resultsBlocks(s)
+  expect(blocks.find(b => b.text.includes('undefined: seen'))?.kind).toBe('code')
 })
 
 test('Results tab: a clean run is good', async () => {

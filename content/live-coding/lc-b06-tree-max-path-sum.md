@@ -5,10 +5,8 @@ type: live-coding
 level: [mid, senior]
 tags: [tree, dfs, dp-on-trees]
 time_minutes: 35
-languages: [python]
 entry: max_path_sum
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: B6
@@ -34,14 +32,6 @@ A binary tree is given in level-order as a list where `null` marks a missing chi
 - **Example 2** - input: `{"tree":[-10,9,20,null,null,15,7]}`  
   output: `42`
 
-## Stub
-
-```python
-def max_path_sum(tree):
-    """max_path_sum(tree: (int | null)[]) -> int"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -51,19 +41,25 @@ max_path_sum(tree: int?[]) -> int
 ## Tests
 
 ```json tests
-{"function":"max_path_sum","kind":"func","compare":"exact","fuzz":20,"perf":{"sizes":[10000,50000,100000],"limit_ms":4000,"max_exponent":1.5},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"tree":[1,2,3]}},
-{"name":"example-2","tags":["visible"],"args":{"tree":[-10,9,20,null,null,15,7]}},
-{"name":"edge-single-negative","tags":["edge"],"args":{"tree":[-3]}},
-{"name":"edge-all-negative","tags":["edge"],"args":{"tree":[-2,-1,-3]}},
-{"name":"hidden-path-skips-root","tags":["hidden"],"args":{"tree":[-5,4,4,3,null,null,3]}},
-{"name":"hidden-left-chain","tags":["hidden"],"args":{"tree":[1,2,null,3,null,4]}}
+{"function":"max_path_sum","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"tree":[1,2,3]},"expected":6},
+{"name":"example-2","tags":["visible"],"args":{"tree":[-10,9,20,null,null,15,7]},"expected":42},
+{"name":"edge-single-negative","tags":["edge"],"args":{"tree":[-3]},"expected":-3},
+{"name":"edge-all-negative","tags":["edge"],"args":{"tree":[-2,-1,-3]},"expected":-1},
+{"name":"hidden-path-skips-root","tags":["hidden"],"args":{"tree":[-5,4,4,3,null,null,3]},"expected":9},
+{"name":"hidden-left-chain","tags":["hidden"],"args":{"tree":[1,2,null,3,null,4]},"expected":10},
+{"name":"random-1","tags":["hidden"],"args":{"tree":[-1,null,-10,10,null,6,-7,8,-10,null,-3,null,8,6]},"expected":32},
+{"name":"random-2","tags":["hidden"],"args":{"tree":[-8,null,8,-8,-6,-2,-1]},"expected":8},
+{"name":"random-3","tags":["hidden"],"args":{"tree":[-3,-9,null,6,null,null,1,-6,null,2,null,null,10]},"expected":13},
+{"name":"random-4","tags":["hidden"],"args":{"tree":[-10,3,4,null,2]},"expected":5}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
+from collections import deque
+
 def solve(tree):
     left, right = {}, {}
     q = deque([0])
@@ -92,37 +88,11 @@ def solve(tree):
         best = max(best, tree[u] + l + r)
         gain[u] = tree[u] + max(l, r)
     return best
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    n = rnd.randint(1, 12)
-    out = [rnd.randint(-10, 10)]
-    q, count = deque([0]), 1
-    while q and count < n:
-        q.popleft()
-        for _ in range(2):
-            if count < n and rnd.random() < 0.7:
-                out.append(rnd.randint(-10, 10))
-                q.append(len(out) - 1)
-                count += 1
-            else:
-                out.append(None)
-    while out and out[-1] is None:
-        out.pop()
-    return {"tree": out}
-
-def gen_perf(n):
-    rnd = random.Random(6)
-    tree = [rnd.randint(1, 9)]
-    for _ in range(n - 1):
-        tree += [rnd.randint(1, 9), None]
-    return {"tree": tree}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(n) time, O(h) extra space (O(n) for the chain)
-- **Scaling check:** sizes [10000, 50000, 100000], limit 4000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.5
 - **Clarifying questions (answer verbatim):**
   - Q: Must the path include the root?  
     A: No.

@@ -5,10 +5,8 @@ type: live-coding
 level: [mid, senior]
 tags: [design, hash-map, linked-list]
 time_minutes: 30
-languages: [python]
 entry: LRUCache
 kind: ops
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: C1
@@ -31,23 +29,6 @@ Implement `LRUCache(capacity)`. `get(key)` returns the value or `-1` when absent
 - **Example 1** - calls: `LRUCache(2); put(1, 1); put(2, 2); get(1); put(3, 3); get(2); put(4, 4); get(1); get(3); get(4)`  
   returns: `[null,null,null,1,null,-1,null,-1,3,4]`
 
-## Stub
-
-```python
-class LRUCache:
-    def __init__(self, capacity):
-        """constructor(capacity: int)"""
-        raise NotImplementedError
-
-    def get(self, key):
-        """get(key: int) -> int"""
-        raise NotImplementedError
-
-    def put(self, key, value):
-        """put(key: int, value: int) -> void"""
-        raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -59,17 +40,23 @@ put(key: int, value: int) -> void
 ## Tests
 
 ```json tests
-{"function":"LRUCache","kind":"ops","compare":"exact","fuzz":25,"perf":{"sizes":[20000,100000,300000],"limit_ms":4000,"max_exponent":1.4},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"calls":[["LRUCache",[2]],["put",[1,1]],["put",[2,2]],["get",[1]],["put",[3,3]],["get",[2]],["put",[4,4]],["get",[1]],["get",[3]],["get",[4]]]}},
-{"name":"edge-capacity-one","tags":["edge"],"args":{"calls":[["LRUCache",[1]],["put",[1,1]],["put",[2,2]],["get",[1]],["get",[2]]]}},
-{"name":"edge-update-existing","tags":["edge"],"args":{"calls":[["LRUCache",[2]],["put",[1,1]],["put",[2,2]],["put",[1,10]],["put",[3,3]],["get",[1]],["get",[2]]]}},
-{"name":"hidden-get-refreshes","tags":["hidden"],"args":{"calls":[["LRUCache",[2]],["put",[1,1]],["put",[2,2]],["get",[1]],["put",[3,3]],["get",[1]],["get",[2]],["get",[3]]]}}
+{"function":"LRUCache","kind":"ops","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"calls":[["LRUCache",[2]],["put",[1,1]],["put",[2,2]],["get",[1]],["put",[3,3]],["get",[2]],["put",[4,4]],["get",[1]],["get",[3]],["get",[4]]]},"expected":[null,null,null,1,null,-1,null,-1,3,4]},
+{"name":"edge-capacity-one","tags":["edge"],"args":{"calls":[["LRUCache",[1]],["put",[1,1]],["put",[2,2]],["get",[1]],["get",[2]]]},"expected":[null,null,null,-1,2]},
+{"name":"edge-update-existing","tags":["edge"],"args":{"calls":[["LRUCache",[2]],["put",[1,1]],["put",[2,2]],["put",[1,10]],["put",[3,3]],["get",[1]],["get",[2]]]},"expected":[null,null,null,null,null,10,-1]},
+{"name":"hidden-get-refreshes","tags":["hidden"],"args":{"calls":[["LRUCache",[2]],["put",[1,1]],["put",[2,2]],["get",[1]],["put",[3,3]],["get",[1]],["get",[2]],["get",[3]]]},"expected":[null,null,null,1,null,1,-1,3]},
+{"name":"random-1","tags":["hidden"],"args":{"calls":[["LRUCache",[3]],["put",[5,3]],["put",[5,0]],["get",[4]],["get",[0]],["put",[4,48]],["put",[2,2]]]},"expected":[null,null,null,-1,-1,null,null]},
+{"name":"random-2","tags":["hidden"],"args":{"calls":[["LRUCache",[3]],["put",[0,53]],["put",[5,9]],["put",[1,8]],["put",[0,63]],["get",[1]],["get",[2]],["get",[3]]]},"expected":[null,null,null,null,null,8,-1,-1]},
+{"name":"random-3","tags":["hidden"],"args":{"calls":[["LRUCache",[4]],["get",[0]],["put",[2,1]],["put",[2,92]],["put",[1,45]],["put",[1,91]],["put",[5,50]],["put",[2,0]],["get",[0]],["put",[1,90]],["put",[4,34]],["get",[2]],["put",[1,12]]]},"expected":[null,-1,null,null,null,null,null,null,-1,null,null,0,null]},
+{"name":"random-4","tags":["hidden"],"args":{"calls":[["LRUCache",[2]],["get",[3]],["get",[3]],["put",[3,19]],["get",[0]],["get",[5]]]},"expected":[null,-1,-1,null,-1,-1]}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
+from collections import OrderedDict
+
 class LRUCache:
     def __init__(self, capacity):
         self.cap = capacity
@@ -87,22 +74,11 @@ class LRUCache:
         self.d[key] = value
         if len(self.d) > self.cap:
             self.d.popitem(last=False)
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    return rand_ops(rnd, ("LRUCache", rnd.randint(1, 4)), rnd.randint(5, 30),
-                    [(3, lambda r: ("get", r.randint(0, 5))), (3, lambda r: ("put", r.randint(0, 5), r.randint(0, 99)))])
-
-def gen_perf(n):
-    rnd = random.Random(101)
-    return rand_ops(rnd, ("LRUCache", 1000), n,
-                    [(1, lambda r: ("get", r.randint(0, 2000))), (1, lambda r: ("put", r.randint(0, 2000), r.randint(0, 99)))])
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(1) per operation
-- **Scaling check:** sizes [20000, 100000, 300000], limit 4000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.4
 - **Clarifying questions (answer verbatim):**
   - Q: Does updating an existing key refresh it?  
     A: Yes.

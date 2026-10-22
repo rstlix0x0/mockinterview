@@ -5,10 +5,8 @@ type: live-coding
 level: [senior]
 tags: [design]
 time_minutes: 10
-languages: [python]
 entry: MiniCounter
 kind: ops
-runs_code: true
 source: original
 author: tests
 ---
@@ -17,20 +15,6 @@ author: tests
 ## Statement
 
 Design `MiniCounter` with `add(x)` and `total()`.
-
-## Stub
-
-```python
-class MiniCounter:
-    def __init__(self):
-        pass
-
-    def add(self, x):
-        pass
-
-    def total(self):
-        pass
-```
 
 ## Signature
 
@@ -43,16 +27,20 @@ total() -> int
 ## Tests
 
 ```json tests
-{"function":"MiniCounter","kind":"ops","compare":"exact","fuzz":3,"cases":[
-{"name":"example-1","tags":["visible"],"args":{"calls":[["MiniCounter",[]],["add",[1]],["add",[2]],["total",[]]]}},
-{"name":"edge-empty","tags":["edge"],"args":{"calls":[["MiniCounter",[]],["total",[]]]}},
-{"name":"hidden-negative","tags":["hidden"],"args":{"calls":[["MiniCounter",[]],["add",[-4]],["total",[]]]}}
+{"function":"MiniCounter","kind":"ops","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"calls":[["MiniCounter",[]],["add",[1]],["add",[2]],["total",[]]]},"expected":[null,null,null,3]},
+{"name":"edge-empty","tags":["edge"],"args":{"calls":[["MiniCounter",[]],["total",[]]]},"expected":[null,0]},
+{"name":"hidden-negative","tags":["hidden"],"args":{"calls":[["MiniCounter",[]],["add",[-4]],["total",[]]]},"expected":[null,null,-4]},
+{"name":"random-1","tags":["hidden"],"args":{"calls":[["MiniCounter",[]],["total",[]],["total",[]],["total",[]],["total",[]],["total",[]]]},"expected":[null,0,0,0,0,0]},
+{"name":"random-2","tags":["hidden"],"args":{"calls":[["MiniCounter",[]],["add",[-4]],["add",[1]],["total",[]],["add",[-3]],["add",[-1]],["add",[-1]]]},"expected":[null,null,null,-3,null,null,null]},
+{"name":"random-3","tags":["hidden"],"args":{"calls":[["MiniCounter",[]],["add",[4]],["add",[0]],["add",[-1]],["total",[]],["total",[]],["add",[4]],["add",[0]]]},"expected":[null,null,null,null,3,3,null,null]},
+{"name":"random-4","tags":["hidden"],"args":{"calls":[["MiniCounter",[]],["add",[-3]],["add",[-1]],["add",[-1]],["add",[1]]]},"expected":[null,null,null,null,null]}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 class MiniCounter:
     def __init__(self):
         self.t = 0
@@ -62,13 +50,6 @@ class MiniCounter:
 
     def total(self):
         return self.t
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    calls = [["MiniCounter", []]]
-    for _ in range(rnd.randint(1, 8)):
-        calls.append(["add", [rnd.randint(-5, 5)]] if rnd.random() < 0.6 else ["total", []])
-    return {"calls": calls}
 ```
 
 ## Interviewer notes

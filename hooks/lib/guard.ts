@@ -1,7 +1,7 @@
 // Spoiler guard: pure decision logic. FRICTION, NOT SECURITY.
 //
 // During an interview round the model must not read the pack files (they hold
-// hidden tests, oracles and interviewer notes). The engineer owns the machine
+// hidden tests, reference solutions and interviewer notes). The engineer owns the machine
 // and can read them in a terminal, so this only stops accidental spoilers.
 // Known gaps, all deliberate: a recursive Grep or Glob started from a parent
 // folder, a Bash command that builds a path at run time, a link the engine

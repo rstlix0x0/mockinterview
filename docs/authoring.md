@@ -13,9 +13,9 @@ A **pack** is one Markdown file that describes one problem or one knowledge docu
 
 Each root is scanned recursively for `*.md` files. If two packs have the same `id`, the later root in the order above wins, and `mi.py list` reports the override. The user, project and option roots are **optional**; they exist only if you create them.
 
-## Trust
+## Running pack code
 
-A pack with `runs_code: true` contains Python (an oracle) that the runner executes on your machine. Packs from the built-in root are trusted. Packs from any other root are refused until you run `python3 runner/mi.py trust ROOT`. Treat a teammate's pack like a teammate's script: read it first.
+A session never runs pack code: the engineer's solution runs in their own toolchain, and the expected values are stored in the pack. Only `selftest` runs a pack's reference solution (Python), when an author asks for it. Read a teammate's pack before you run its `selftest`.
 
 ## Frontmatter
 
@@ -27,10 +27,8 @@ type: live-coding           # live-coding | system-design | knowledge
 level: [mid, senior]        # junior | mid | senior | staff
 tags: [design, hash-map, linked-list]
 time_minutes: 30
-languages: [python]         # live-coding only
-entry: LRUCache             # live-coding: function or class the tests call
+entry: LRUCache             # live-coding: function or class the tests call (snake_case functions)
 kind: ops                   # live-coding: func (one function call) | ops (class, list of method calls)
-runs_code: true             # live-coding: must be true
 source: adapted             # original | adapted | third-party
 author: mockinterview
 legacy_id: C1               # optional
@@ -46,10 +44,9 @@ Sections are level-2 headings (`## Name`). Names are case-insensitive. Headings 
 | Type | Section | Audience | Content |
 |---|---|---|---|
 | live-coding | `## Statement` | Engineer | The whole problem as the interviewer says it: description, signature, constraints, examples |
-| live-coding | `## Stub` | Engineer | One fenced `python` block copied to `work/solution.py` at the start (another language gets its language file's stub template, see languages.md). Its parameter names and order are the contract for other languages: each test's `args` keys must be exactly the entry's parameters, and JavaScript receives them positionally in this order |
-| live-coding | `## Signature` | Runner | One fenced `signature` block: the JSON types of the inputs and outputs (see below). Typed languages (Go, Rust) need it; without it a pack still runs in Python and JavaScript, and lint warns |
-| live-coding | `## Tests` | Hidden | One fenced `json tests` block (see below) |
-| live-coding | `## Oracle` | Hidden | One fenced `python oracle` block: the reference solution and generators |
+| live-coding | `## Signature` | Engineer and agent | One fenced `signature` block: the language-neutral types of the inputs and outputs (see below). The agent writes the engineer's stub and test file from it, in their language |
+| live-coding | `## Tests` | Hidden | One fenced `json tests` block with expected values (see below) |
+| live-coding | `## Reference solution` | Hidden | One fenced `python reference` block: a correct, self-contained solution (see below) |
 | live-coding | `## Interviewer notes` | Hidden | Clarifying questions, hint ladder, follow-ups, traps |
 | system-design | `## Statement` | Engineer | The prompt, with tier, time and topics |
 | system-design | `## Self-check questions` | Engineer, after the session | Questions to answer afterwards |
@@ -64,24 +61,23 @@ Sections are level-2 headings (`## Name`). Names are case-insensitive. Headings 
 The `json tests` block is one JSON object:
 
 ```json
-{"function": "two_sum", "kind": "func", "compare": "exact", "fuzz": 6,
- "perf": {"sizes": [20000, 100000, 200000], "limit_ms": 3000, "max_exponent": 1.4},
- "cases": [
-   {"name": "example-1", "tags": ["visible"], "args": {"nums": [2, 7, 11, 15], "target": 9}},
-   {"name": "edge-duplicates", "tags": ["edge"], "args": {"nums": [3, 3], "target": 6}},
-   {"name": "hidden-large-values", "tags": ["hidden"], "args": {"nums": [1000000000, -1000000000, 5], "target": 0}}
- ]}
+{"function":"two_sum","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"nums":[2,7,11,15],"target":9},"expected":[0,1]},
+{"name":"edge-duplicates","tags":["edge"],"args":{"nums":[3,3],"target":6},"expected":[0,1]},
+{"name":"hidden-large-values","tags":["hidden"],"args":{"nums":[1000000000,-1000000000,5],"target":0},"expected":[0,1]}
+]}
 ```
 
-- `function` is the name the solution file must define (a function, or a class for `kind: ops`). It must equal `entry` in the frontmatter.
-- `kind: func` calls `function(**args)`. `kind: ops` builds the class, then calls methods; `args` is `{"calls": [["ClassName", [ctor args]], ["method", [args]], ...]}` and the result is the list of return values (`null` for the constructor).
+- `function` is the entry the tests call (a function, or a class for `kind: ops`). It must equal `entry` in the frontmatter. The agent renames it to the engineer's language convention (`twoSum`).
+- `kind: func` calls `function(args...)`; the `args` keys must be exactly the signature's parameters. `kind: ops` builds the class, then calls methods; `args` is `{"calls": [["ClassName", [ctor args]], ["method", [args]], ...]}` and `expected` is the list of return values, one per call (`null` for the constructor and for methods that return nothing).
 - `compare` is `exact` or `approx` (relative tolerance 1e-4 for numbers).
-- Each case has exactly one tag from `visible`, `edge`, `hidden`. Expected values are **not** stored: they are computed by the oracle.
-- `fuzz` is the number of random cases for the fuzz category; `perf` describes scaling checks (optional).
+- Each case has exactly one tag from `visible` (the examples; the engineer sees them), `edge` and `hidden` (counted but not shown during an interview). Name cases so a failing test name says something (`edge-duplicates`).
+- Each case has an `expected` value. Write the cases without it, then `selftest ID --write-expected` fills it in from the reference solution. Keep cases small: there is no timing test, so a big input adds nothing; complexity is judged in the conversation (`Target complexity` in the notes).
+- One case per line keeps diffs readable; `--write-expected` writes that layout.
 
 ## Signature block
 
-The types of the entry's inputs and outputs, with the stub's Python names: one line for a `func` pack, and for an `ops` pack the constructor (no return type) followed by one line per method. Lines starting with `#` are comments.
+The types of the entry's inputs and outputs, with the pack's (Python) names: one line for a `func` pack, and for an `ops` pack the constructor (no return type) followed by one line per method. Lines starting with `#` are comments.
 
 ````markdown
 ```signature
@@ -103,20 +99,19 @@ put(key: int, value: int) -> void
 | `[A, B]` | tuple: a list of exactly these types, two or more |
 | `{string: T}` | object used as a map |
 | `record{a: T, b?: U}` | object with exactly these keys; `b?` may be absent (not `null` unless `U` is nullable) |
-| `A \| B` | either; group with parentheses: `(int \| string)[]`. Typed languages may not offer a pack that needs it |
+| `A \| B` | either; group with parentheses: `(int \| string)[]`. Awkward in typed languages; avoid it where one type works |
 | `void` | a method's return type when it returns nothing |
 
-`lint` checks the grammar and that the names, parameters (in order) and methods are exactly the stub's. It also warns when Go or Rust cannot express a type (`signature: not offered in Go: ...`); such a pack still runs in Python and JavaScript. How each type looks in Go and Rust is in [languages.md](languages.md#go-and-rust). `selftest` runs the oracle on every case, the fuzz seeds and (with `--perf`) the perf inputs and checks each input and result against the signature: a value that does not conform fails the pack with `signature_errors`, such as `case 'example-1' result[1]: expected string, got int 1`. Prefer the type the tests really use (`string` keys rather than `int | string`) so that typed languages can offer the pack.
+`lint` checks that each line has the shape `name(param: type, ...) -> type`, that the first line declares the entry, and that each case's `args` are the first line's parameters. The types are documentation for the agent and the engineer; prefer the type the tests really use (`string` keys rather than `int | string`).
 
-## Oracle block
+## Reference solution block
 
-Python that runs with `random`, `re`, `heapq`, `bisect`, `math`, `itertools`, `defaultdict`, `deque`, `Counter`, `OrderedDict`, `Fraction` and `rand_ops` already in scope.
+Self-contained Python with its own imports:
 
-- `kind: func`: define `solve(**args)` with the same parameter names as the tests.
+- `kind: func`: define `solve(...)` with the signature's parameter names.
 - `kind: ops`: define the class named `function`.
-- Define `gen_random(seed)` returning an `args` dict (used by fuzz) and, if `perf` exists, `gen_perf(n)`.
 
-The oracle is also the reference solution the Teacher may show after an attempt.
+It is the source of the expected values (`selftest --write-expected`), and the solution the Teacher walks through after an attempt (translated into the engineer's language when needed). Keep it simple and obviously right.
 
 ## Hint ladder
 
@@ -134,9 +129,10 @@ System-design packs use `P0` to `P3` in the same shape. Rungs are given in order
 ## Check your pack
 
 ```bash
-python3 runner/mi.py lint path/to/pack.md      # structure, JSON, headings
-python3 runner/mi.py selftest lc-your-id       # the oracle passes its own tests; values match the signature
-python3 runner/mi.py list --roots              # roots, trust status, overrides
+python3 runner/mi.py lint path/to/pack.md                      # structure, JSON, headings
+python3 runner/mi.py selftest lc-your-id --write-expected      # fill in expected values from the reference
+python3 runner/mi.py selftest lc-your-id                       # stored values agree with the reference
+python3 runner/mi.py list --roots                              # roots and overrides
 ```
 
-Run `selftest` before sharing a pack: it proves the oracle passes its own tests.
+Run `selftest` before sharing a pack: it proves the stored expected values agree with the reference solution.

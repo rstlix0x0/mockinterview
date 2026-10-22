@@ -5,10 +5,8 @@ type: live-coding
 level: [junior, mid]
 tags: [backtracking]
 time_minutes: 25
-languages: [python]
 entry: combination_sum
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: B24
@@ -34,14 +32,6 @@ Given distinct positive integers `candidates` and a `target`, return every uniqu
 - **Example 2** - input: `{"candidates":[2,3,5],"target":8}`  
   output: `[[2,2,2,2],[2,3,3],[3,5]]`
 
-## Stub
-
-```python
-def combination_sum(candidates, target):
-    """combination_sum(candidates: int[], target: int) -> int[][]"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -51,18 +41,22 @@ combination_sum(candidates: int[], target: int) -> int[][]
 ## Tests
 
 ```json tests
-{"function":"combination_sum","kind":"func","compare":"exact","fuzz":25,"perf":{"sizes":[20,30,40],"limit_ms":4000,"max_exponent":null},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"candidates":[2,3,6,7],"target":7}},
-{"name":"example-2","tags":["visible"],"args":{"candidates":[2,3,5],"target":8}},
-{"name":"edge-impossible","tags":["edge"],"args":{"candidates":[5,7],"target":3}},
-{"name":"edge-single-candidate","tags":["edge"],"args":{"candidates":[3],"target":9}},
-{"name":"hidden-unsorted-input","tags":["hidden"],"args":{"candidates":[7,2,3],"target":7}}
+{"function":"combination_sum","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"candidates":[2,3,6,7],"target":7},"expected":[[2,2,3],[7]]},
+{"name":"example-2","tags":["visible"],"args":{"candidates":[2,3,5],"target":8},"expected":[[2,2,2,2],[2,3,3],[3,5]]},
+{"name":"edge-impossible","tags":["edge"],"args":{"candidates":[5,7],"target":3},"expected":[]},
+{"name":"edge-single-candidate","tags":["edge"],"args":{"candidates":[3],"target":9},"expected":[[3,3,3]]},
+{"name":"hidden-unsorted-input","tags":["hidden"],"args":{"candidates":[7,2,3],"target":7},"expected":[[2,2,3],[7]]},
+{"name":"random-1","tags":["hidden"],"args":{"candidates":[1,2,6],"target":1},"expected":[[1]]},
+{"name":"random-2","tags":["hidden"],"args":{"candidates":[2,9,4],"target":10},"expected":[[2,2,2,2,2],[2,2,2,4],[2,4,4]]},
+{"name":"random-3","tags":["hidden"],"args":{"candidates":[1,7],"target":3},"expected":[[1,1,1]]},
+{"name":"random-4","tags":["hidden"],"args":{"candidates":[2,5,6,7],"target":13},"expected":[[2,2,2,2,5],[2,2,2,7],[2,5,6],[6,7]]}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 def solve(candidates, target):
     cands = sorted(set(candidates))
     res = []
@@ -80,19 +74,11 @@ def solve(candidates, target):
             path.pop()
     go(0, target, [])
     return res
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    return {"candidates": rnd.sample(range(1, 10), rnd.randint(1, 4)), "target": rnd.randint(1, 15)}
-
-def gen_perf(n):
-    return {"candidates": [2, 3, 5, 7, 11], "target": n}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** Output-sensitive; pruning with sorted candidates
-- **Scaling check:** sizes [20, 30, 40], limit 4000 ms (calibrated to a straightforward Python solution)
 - **Clarifying questions (answer verbatim):**
   - Q: Is the input sorted?  
     A: Not necessarily.

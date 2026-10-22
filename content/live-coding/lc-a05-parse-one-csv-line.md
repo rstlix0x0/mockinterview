@@ -5,10 +5,8 @@ type: live-coding
 level: [junior]
 tags: [parsing, state-machine]
 time_minutes: 20
-languages: [python]
 entry: parse_csv_line
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: A5
@@ -43,14 +41,6 @@ Split one CSV record into fields, following these rules:
 - **Example 4** - input: `{"line":"\"abc"}`  
   output: `null`
 
-## Stub
-
-```python
-def parse_csv_line(line):
-    """parse_csv_line(line: string) -> string[] | null"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -60,25 +50,29 @@ parse_csv_line(line: string) -> string[]?
 ## Tests
 
 ```json tests
-{"function":"parse_csv_line","kind":"func","compare":"exact","fuzz":20,"cases":[
-{"name":"example-1","tags":["visible"],"args":{"line":"a,b,c"}},
-{"name":"example-2","tags":["visible"],"args":{"line":"a,\"b,c\",d"}},
-{"name":"example-3","tags":["visible"],"args":{"line":"\"say \"\"hi\"\"\",x"}},
-{"name":"example-4","tags":["visible"],"args":{"line":"\"abc"}},
-{"name":"edge-empty-line","tags":["edge"],"args":{"line":""}},
-{"name":"edge-trailing-comma","tags":["edge"],"args":{"line":"a,"}},
-{"name":"edge-only-commas","tags":["edge"],"args":{"line":",,"}},
-{"name":"edge-empty-quoted","tags":["edge"],"args":{"line":"\"\""}},
-{"name":"hidden-spaces-kept","tags":["hidden"],"args":{"line":" a , b "}},
-{"name":"hidden-junk-after-quote","tags":["hidden"],"args":{"line":"\"a\"b,c"}},
-{"name":"hidden-quote-in-plain","tags":["hidden"],"args":{"line":"a\"b"}},
-{"name":"hidden-escaped-at-end","tags":["hidden"],"args":{"line":"\"a\"\"\""}}
+{"function":"parse_csv_line","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"line":"a,b,c"},"expected":["a","b","c"]},
+{"name":"example-2","tags":["visible"],"args":{"line":"a,\"b,c\",d"},"expected":["a","b,c","d"]},
+{"name":"example-3","tags":["visible"],"args":{"line":"\"say \"\"hi\"\"\",x"},"expected":["say \"hi\"","x"]},
+{"name":"example-4","tags":["visible"],"args":{"line":"\"abc"},"expected":null},
+{"name":"edge-empty-line","tags":["edge"],"args":{"line":""},"expected":[""]},
+{"name":"edge-trailing-comma","tags":["edge"],"args":{"line":"a,"},"expected":["a",""]},
+{"name":"edge-only-commas","tags":["edge"],"args":{"line":",,"},"expected":["","",""]},
+{"name":"edge-empty-quoted","tags":["edge"],"args":{"line":"\"\""},"expected":[""]},
+{"name":"hidden-spaces-kept","tags":["hidden"],"args":{"line":" a , b "},"expected":[" a "," b "]},
+{"name":"hidden-junk-after-quote","tags":["hidden"],"args":{"line":"\"a\"b,c"},"expected":null},
+{"name":"hidden-quote-in-plain","tags":["hidden"],"args":{"line":"a\"b"},"expected":null},
+{"name":"hidden-escaped-at-end","tags":["hidden"],"args":{"line":"\"a\"\"\""},"expected":["a\""]},
+{"name":"random-1","tags":["hidden"],"args":{"line":",,\"\""},"expected":["","",""]},
+{"name":"random-2","tags":["hidden"],"args":{"line":"\"\"\",a\""},"expected":["\",a"]},
+{"name":"random-3","tags":["hidden"],"args":{"line":"\"a a\"\"\""},"expected":["a a\""]},
+{"name":"random-4","tags":["hidden"],"args":{"line":"\"b,,\""},"expected":["b,,"]}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 def solve(line):
     fields, cur = [], []
     i, n = 0, len(line)
@@ -111,19 +105,6 @@ def solve(line):
         if i >= n:
             return fields
         i += 1
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    if rnd.random() < 0.25:
-        return {"line": rnd.choice(['"abc', 'a"b', '"a"b', 'x,"y', '"a""', ',"', 'a,"b"c,d'])}
-    fields = [''.join(rnd.choice('ab ,"') for _ in range(rnd.randint(0, 4))) for _ in range(rnd.randint(1, 4))]
-    enc = []
-    for f in fields:
-        if any(c in f for c in ',"') or rnd.random() < 0.3:
-            enc.append('"' + f.replace('"', '""') + '"')
-        else:
-            enc.append(f)
-    return {"line": ','.join(enc)}
 ```
 
 ## Interviewer notes

@@ -18,8 +18,9 @@ export type LastRun = {
   failed: number
   total: number
   byCategory: Record<string, string>
-  perfLines: string[]
   failures: Failure[]
+  /** Build or run output when the tests could not run at all; every case then fails. */
+  error: string | null
 }
 
 export type Current = {
@@ -54,9 +55,9 @@ export type Session = {
   state: string
   round: number
   roundsTotal: number
-  /** Solution language id and work file; null for design-only sessions and older session files. */
+  /** The engineer's language and test command, free text; null in older session files. */
   language: string | null
-  solution: string | null
+  testCommand: string | null
   current: Current | null
   scorecard: Scorecard | null
 }
@@ -89,7 +90,6 @@ function numMap(v: unknown): Record<string, number> {
 
 function parseLastRun(v: unknown): LastRun | null {
   if (!isObj(v)) return null
-  const perf = isObj(v.perf) ? arr(v.perf.lines).map(String) : []
   const failures: Failure[] = []
   for (const f of arr(v.failures)) {
     if (!isObj(f)) continue
@@ -114,8 +114,8 @@ function parseLastRun(v: unknown): LastRun | null {
     failed: num(v.failed) ?? 0,
     total: num(v.total) ?? 0,
     byCategory: strMap(v.by_category),
-    perfLines: perf,
     failures,
+    error: str(v.error),
   }
 }
 
@@ -183,7 +183,7 @@ export function parseSession(text: string | null | undefined): Session | null {
     round: num(raw.round) ?? 0,
     roundsTotal: num(raw.rounds_total) ?? loop.length,
     language: str(raw.language),
-    solution: str(raw.solution),
+    testCommand: str(raw.test_command),
     current: parseCurrent(raw.current),
     scorecard: parseScorecard(raw.scorecard),
   }

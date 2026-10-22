@@ -8,12 +8,11 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from concurrent.futures import ThreadPoolExecutor
 
 from . import draw as drawmod
-from . import deps, execute, languages, packs, score as scoremod, session as sess
+from . import packs, reference, score as scoremod, session as sess
 from .packs import LEVELS, PackError
-from .util import MiError, atomic_write, iso, now_utc, parse_iso, read_json
+from .util import MiError, atomic_write, iso, now_utc, short
 
 PACK_TYPES = ("live-coding", "system-design")
 
@@ -42,9 +41,6 @@ def _runnable(ctx, pack):
     errors, _warnings = packs.lint_pack(pack)
     if errors:
         raise MiError("pack '%s' has lint errors: %s" % (pack.id, "; ".join(errors[:3])), code="bad_pack")
-    if pack.type == "live-coding" and not packs.is_trusted(ctx, pack.root_label, pack.root):
-        raise MiError("pack root '%s' is not trusted; read the pack, then run: mi.py trust \"%s\""
-                      % (pack.root, pack.root), code="untrusted", root=pack.root)
 
 
 def _interview_hidden(session):
@@ -69,31 +65,11 @@ def _guard_new_session(ctx, existing, replace=False):
         raise MiError("the last session is finished but not scored; run score, or abandon", code="unscored")
 
 
-def _choose_language(ctx, a, live_packs):
-    """Session fields for the solution language, checked now so a missing toolchain fails before the clock."""
-    if not live_packs:
-        return {"language": None, "runtime": None, "solution": None}, None
-    lang = languages.get(ctx, a.lang)
-    if lang.glue:
-        for pack in live_packs:
-            lang.generator(pack)  # language_unsupported when the signature cannot be expressed
-    version = lang.select(a.runtime)
-    return {"language": lang.id, "runtime": lang.runtime,
-            "solution": _rel(ctx, os.path.join(ctx.work_dir, lang.solution))}, version
-
-
-def _session_language(ctx, session):
-    """The session's language with its stored runtime. Sessions from before languages existed are Python."""
-    lang = languages.get(ctx, session.get("language") or languages.DEFAULT)
-    lang.use(session.get("runtime"))
-    return lang
-
-
-def _language_out(fields, version):
-    out = {k: v for k, v in fields.items() if v is not None}
-    if version:
-        out["toolchain"] = version
-    return out
+def _toolchain(a):
+    """Session fields for the engineer's language and test command: free text, never run by the runner."""
+    lang = " ".join((a.lang or "").split()) or "python"
+    cmd = " ".join((a.test_cmd or "").split()) or None
+    return {"language": lang, "test_command": cmd}
 
 
 # ------------------------------------------------------------- list, show, status
@@ -159,7 +135,7 @@ def cmd_status(ctx, a):
            "rounds_total": session["rounds_total"], "type": rnd["type"], "time_minutes": rnd["time_minutes"],
            "title": rnd.get("title"), "started_at": rnd.get("started_at"),
            "hints_used": rnd.get("hints_used", []), "has_run": rnd.get("last_run") is not None,
-           "language": session.get("language"), "solution": session.get("solution")}
+           "language": session.get("language"), "test_command": session.get("test_command")}
     out.update(sess.timing(rnd))
     return out
 
@@ -173,8 +149,7 @@ def cmd_draw(ctx, a):
         raise MiError("type must be one of: %s" % ", ".join(PACK_TYPES), code="bad_type")
     _guard_new_session(ctx, sess.load(ctx, required=False))
     index = packs.build_index(ctx)
-    skipped, unsupported = [], []
-    target = languages.get(ctx, a.lang) if a.type in (None, "live-coding") else None
+    skipped = []
 
     def eligible(pack):
         try:
@@ -183,12 +158,6 @@ def cmd_draw(ctx, a):
             errors = [str(exc)]
         if errors:
             skipped.append("%s: %s" % (pack.id, errors[0]))
-            return False
-        if pack.type == "live-coding" and not packs.is_trusted(ctx, pack.root_label, pack.root):
-            skipped.append("%s: root not trusted" % pack.id)
-            return False
-        if pack.type == "live-coding" and target is not None and not target.supports(pack):
-            unsupported.append(pack.id)
             return False
         return True
 
@@ -199,11 +168,8 @@ def cmd_draw(ctx, a):
         raise MiError("no problems are available for level '%s'. %s" % (a.level, "; ".join(warnings)),
                       code="empty_pool")
     if skipped:
-        warnings.append("skipped %d invalid or untrusted pack(s), for example: %s" % (len(skipped), skipped[0]))
-    if unsupported:
-        warnings.append("%d live-coding pack(s) are not offered in %s because their signature cannot be expressed "
-                        "there, for example: %s" % (len(set(unsupported)), target.name, sorted(set(unsupported))[0]))
-    lang_fields, version = _choose_language(ctx, a, [p for p in chosen if p.type == "live-coding"])
+        warnings.append("skipped %d invalid pack(s), for example: %s" % (len(skipped), skipped[0]))
+    lang_fields = _toolchain(a)
     session = {
         "schema": sess.SCHEMA, "session_id": sess.new_session_id(), "mode": "interview", "level": a.level,
         "state": "drawn", "seed": seed, "round": 0, "rounds_total": len(chosen), **lang_fields,
@@ -215,8 +181,7 @@ def cmd_draw(ctx, a):
     out = {"ok": True, "session_id": session["session_id"], "mode": "interview", "level": a.level,
            "seed": seed, "rounds_total": len(chosen),
            "rounds": [{"round": i + 1, "type": r["type"], "time_minutes": r["time_minutes"]}
-                      for i, r in enumerate(session["loop"])], "state": "drawn",
-           **_language_out(lang_fields, version)}
+                      for i, r in enumerate(session["loop"])], "state": "drawn", **lang_fields}
     if warnings:
         out["warnings"] = warnings
     hint = sess.gitignore_hint(ctx)
@@ -230,7 +195,7 @@ def cmd_pick(ctx, a):
     index = packs.build_index(ctx)
     pack = _get_pack(index, a.id)
     _runnable(ctx, pack)
-    lang_fields, version = _choose_language(ctx, a, [pack] if pack.type == "live-coding" else [])
+    lang_fields = _toolchain(a)
     session = {
         "schema": sess.SCHEMA, "session_id": sess.new_session_id(), "mode": "practice", "level": None,
         "state": "drawn", "seed": None, "round": 0, "rounds_total": 1, **lang_fields,
@@ -241,7 +206,7 @@ def cmd_pick(ctx, a):
     sess.save(ctx, session)
     out = {"ok": True, "session_id": session["session_id"], "mode": "practice", "problem": pack.id,
            "title": pack.title, "type": pack.type, "time_minutes": pack.time_minutes, "state": "drawn",
-           **_language_out(lang_fields, version)}
+           **lang_fields}
     hint = sess.gitignore_hint(ctx)
     if hint:
         out["hint"] = hint
@@ -250,20 +215,21 @@ def cmd_pick(ctx, a):
 
 # ---------------------------------------------------------------------- begin
 
-def _archive_and_write(ctx, target, content):
-    os.makedirs(os.path.dirname(target), exist_ok=True)
-    archived = None
-    if os.path.exists(target):
-        with open(target, encoding="utf-8") as fh:
-            old = fh.read()
-        if old.strip() and old.strip() != content.strip():
-            adir = os.path.join(ctx.work_dir, "archive")
-            os.makedirs(adir, exist_ok=True)
-            stamp = now_utc().strftime("%Y%m%dT%H%M%SZ")
-            archived = os.path.join(adir, "%s-%s" % (stamp, os.path.basename(target)))
-            shutil.move(target, archived)
-    atomic_write(target, content if content.endswith("\n") else content + "\n")
-    return archived
+def _fresh_work_dir(ctx):
+    """Move everything in work/ (but archive/) to work/archive/<time>/ so each round starts empty."""
+    os.makedirs(ctx.work_dir, exist_ok=True)
+    entries = sorted(e for e in os.listdir(ctx.work_dir) if e != "archive")
+    if not entries:
+        return None
+    dest = os.path.join(ctx.work_dir, "archive", now_utc().strftime("%Y%m%dT%H%M%SZ"))
+    n = 1
+    while os.path.exists(dest):
+        n += 1
+        dest = os.path.join(ctx.work_dir, "archive", now_utc().strftime("%Y%m%dT%H%M%SZ") + "-%d" % n)
+    os.makedirs(dest)
+    for e in entries:
+        shutil.move(os.path.join(ctx.work_dir, e), os.path.join(dest, e))
+    return dest
 
 
 def cmd_begin(ctx, a):
@@ -273,82 +239,135 @@ def cmd_begin(ctx, a):
     index = packs.build_index(ctx)
     pack = _get_pack(index, rnd["problem"])
     _runnable(ctx, pack)
-    statement = pack.section("statement") or ""
+    statement = (pack.section("statement") or "").strip()
     now = now_utc()
     rnd["title"] = pack.title
     rnd["started_at"] = iso(now)
     session["state"] = "running"
-    files, archived = {}, None
+    archived = _fresh_work_dir(ctx)
+    files = {"work_dir": _rel(ctx, ctx.work_dir)}
+    out_extra = {}
     if pack.type == "live-coding":
-        lang = _session_language(ctx, session)
-        target = os.path.join(ctx.work_dir, lang.solution)
-        archived = _archive_and_write(ctx, target, lang.stub(pack))
-        files["solution"] = _rel(ctx, target)
-        project = execute.write_scaffold(lang, ctx.work_dir) + execute.write_glue(lang, pack, ctx.work_dir)
-        if project:
-            files["project"] = [_rel(ctx, f) for f in project]
-        work_note = ("Work file: `%s`. Edit it in your own editor. When you are ready, ask the interviewer "
-                     "to run your tests." % files["solution"])
-        if not lang.pack_stub:
-            work_note += (" The statement uses the Python names; the stub in the work file has the %s names "
-                          "and types." % lang.name.split(" (")[0].split(" ")[0])
+        signature = pack.signature() or ""
+        out_extra = {"signature": signature, "language": session.get("language"),
+                     "test_command": session.get("test_command")}
+        statement += "\n\n**Types** (`int[]` is a list of ints, `T?` may be null; use your language's names):\n\n" \
+                     "```\n%s\n```" % signature
+        work_note = ("Language: %s. Write your solution and its tests in `%s`, with your own editor and toolchain. "
+                     "The interviewer sets up the stub and a test file with the visible cases; ask them to run "
+                     "your tests when you are ready." % (session.get("language") or "python", files["work_dir"]))
     else:
         with open(os.path.join(ctx.runner_dir, "templates", "design-template.md"), encoding="utf-8") as fh:
             template = fh.read()
         target = os.path.join(ctx.work_dir, "design.md")
-        archived = _archive_and_write(ctx, target, template)
+        atomic_write(target, template)
         files["design"] = _rel(ctx, target)
         work_note = ("Work file: `%s` (optional written design). You can also talk it through. Put estimation "
                      "claims in `.mockinterview/work/estimate.json` if you want them checked." % files["design"])
     problem_md = "# %s\n\n_%s, %d minutes. Round %d of %d._\n\n%s\n\n---\n%s\n" % (
         pack.title, pack.type, pack.time_minutes, session["round"] + 1, session["rounds_total"],
-        statement.strip(), work_note)
+        statement, work_note)
     atomic_write(os.path.join(ctx.work_dir, "PROBLEM.md"), problem_md)
     sess.save(ctx, session)
     out = {"ok": True, "problem": pack.id, "title": pack.title, "type": pack.type,
            "time_minutes": pack.time_minutes, "limit_seconds": pack.time_minutes * 60,
            "started_at": rnd["started_at"], "round_number": session["round"] + 1,
-           "rounds_total": session["rounds_total"], "statement": statement, "files": files,
-           "problem_file": _rel(ctx, os.path.join(ctx.work_dir, "PROBLEM.md")), "state": "running"}
+           "rounds_total": session["rounds_total"], "statement": pack.section("statement") or "", "files": files,
+           "problem_file": _rel(ctx, os.path.join(ctx.work_dir, "PROBLEM.md")), "state": "running", **out_extra}
     if archived:
         out["archived_previous"] = _rel(ctx, archived)
     return out
 
 
-# ------------------------------------------------------------------------ run
+# --------------------------------------------------------------- tests, record
 
-def cmd_run(ctx, a):
+SHOW_LIMIT = 3
+
+
+def _coding_round(ctx):
     session = sess.load(ctx)
     sess.require_state(session, "running")
     rnd = sess.current_round(session)
     if rnd["type"] != "live-coding":
-        raise MiError("run is for live-coding problems; use estimate-check or design-lint for design problems",
+        raise MiError("tests are for live-coding problems; use estimate-check or design-lint for design problems",
                       code="bad_type")
-    lang = _session_language(ctx, session)
-    solution = os.path.join(ctx.work_dir, lang.solution)
-    if not os.path.exists(solution):
-        raise MiError("no solution file at %s" % _rel(ctx, solution), code="no_solution")
+    pack = _get_pack(packs.build_index(ctx), rnd["problem"])
+    return session, rnd, pack
+
+
+def _case_set(suite, everything):
+    wanted = {"visible", "edge", "hidden"} if everything else {"visible"}
+    return [c for c in suite["cases"] if c["tags"][0] in wanted]
+
+
+def cmd_tests(ctx, a):
+    session, _rnd, pack = _coding_round(ctx)
+    suite = pack.suite()
+    cases = [{"name": c["name"], "category": c["tags"][0], "args": c["args"], "expected": c.get("expected")}
+             for c in _case_set(suite, a.all)]
+    out = {"ok": True, "problem": pack.id, "function": suite["function"], "kind": suite["kind"],
+           "compare": suite.get("compare", "exact"), "signature": pack.signature(),
+           "language": session.get("language"), "test_command": session.get("test_command"),
+           "set": "all" if a.all else "visible", "count": len(cases), "cases": cases}
+    if a.all and session["mode"] == "interview":
+        out["policy"] = "interview: do not show edge or hidden cases to the engineer; report only their counts"
+    return out
+
+
+def _names(text):
+    return [n.strip() for n in (text or "").split(",") if n.strip()]
+
+
+def cmd_record(ctx, a):
+    session, rnd, pack = _coding_round(ctx)
+    suite = pack.suite()
+    cases = _case_set(suite, a.mode == "all")
+    by_name = {c["name"]: c for c in cases}
+    failed = _names(a.failed)
+    unknown = [n for n in failed if n not in by_name]
+    if unknown:
+        raise MiError("not a case of the %s set: %s" % (a.mode, ", ".join(unknown)), code="unknown_case",
+                      cases=sorted(by_name))
+    got = {}
+    for item in a.got or []:
+        name, sep, value = item.partition("=")
+        if not sep or name.strip() not in by_name:
+            raise MiError("--got needs NAME=VALUE with a case name of the %s set: %s" % (a.mode, item),
+                          code="unknown_case")
+        got[name.strip()] = value.strip()
+    error = (a.error or "").strip() or None
+    if error:
+        failed = list(by_name)
     interview = session["mode"] == "interview"
-    if interview and lang.deps_check:
-        found = deps.check(lang.deps_check, solution, lang.work_of(solution))
-        if found:
-            raise MiError("interview rounds use the standard library only: found %s"
-                          % ", ".join("'%s'" % n for n in found), code="dependencies_not_allowed", found=found)
-    index = packs.build_index(ctx)
-    pack = _get_pack(index, rnd["problem"])
-    _runnable(ctx, pack)
-    build = execute.prepare(ctx, lang, pack, solution)
-    result = execute.run_suite(ctx, pack, lang, solution, mode=a.mode, perf=a.perf, fuzz=a.fuzz, seed=a.seed,
-                               factor=a.factor, timeout=a.timeout, interview=interview)
-    if build is not None:
-        result["build"] = build
-    result["ok"] = True
-    result["mode"] = a.mode
-    result["pass"] = result["failed"] == 0
-    rnd["last_run"] = {k: v for k, v in result.items() if k != "ok"}
+    stats, failures = {}, []
+    for c in cases:
+        tag = c["tags"][0]
+        s = stats.setdefault(tag, [0, 0])
+        s[1] += 1
+        if c["name"] not in failed:
+            s[0] += 1
+            continue
+        shown = (not interview or tag == "visible") and sum(1 for f in failures if f["shown"]) < SHOW_LIMIT
+        entry = {"name": c["name"], "category": tag, "shown": shown}
+        if shown:
+            entry.update(args=short(c["args"]), expected=short(c.get("expected")))
+            if c["name"] in got:
+                entry["got"] = got[c["name"]][:240]
+        failures.append(entry)
+    passed = sum(v[0] for v in stats.values())
+    total = sum(v[1] for v in stats.values())
+    result = {"problem": pack.id, "mode": a.mode, "passed": passed, "failed": total - passed, "total": total,
+              "by_category": {k: "%d/%d" % (v[0], v[1]) for k, v in stats.items()}, "failures": failures,
+              "details_policy": ("interview: only visible failures are shown" if interview
+                                 else "practice: details for up to %d failing cases" % SHOW_LIMIT),
+              "recorded_at": iso(now_utc())}
+    if error:
+        result["error"] = error[-2000:]
+    rnd["last_run"] = result
     sess.save(ctx, session)
-    result.update(sess.timing(rnd))
-    return result
+    out = {"ok": True, "pass": result["failed"] == 0, **result}
+    out.update(sess.timing(rnd))
+    return out
 
 
 # ----------------------------------------------------------------------- hint
@@ -452,9 +471,9 @@ def cmd_notes(ctx, a):
     chosen = [b for b in blocks if b["class"] != "ladder" and (want == "all" or b["class"] == want)]
     text = "\n".join("\n".join(b["lines"]).strip("\n") + "\n" for b in chosen).strip("\n")
     if want in ("reference", "all") and pack.type == "live-coding":
-        src = pack.oracle_source()
+        src = pack.reference_source()
         if src:
-            text += "\n\nReference solution and generators (oracle):\n\n```python\n%s\n```" % src
+            text += "\n\nReference solution (Python):\n\n```python\n%s\n```" % src
     out = {"ok": True, "problem": pack.id, "section": want, "text": text,
            "blocks": [b["title"] for b in chosen]}
     if not text.strip():
@@ -475,7 +494,7 @@ def cmd_finish(ctx, a):
                      "hints_used": list(rnd["hints_used"]), "last_run": rnd["last_run"]}
     warnings = []
     if rnd["type"] == "live-coding" and rnd["last_run"] is None:
-        warnings.append("no test run was recorded for this round; the implementation rating will be 0")
+        warnings.append("no test result was recorded for this round; the implementation rating will be 0")
     finished_round = session["round"] + 1
     out = {"ok": True, "problem": rnd["problem"], "title": rnd.get("title"), "round_number": finished_round,
            "rounds_total": session["rounds_total"], "result": rnd["result"]}
@@ -635,71 +654,44 @@ def cmd_selftest(ctx, a):
     else:
         targets = [_get_pack(index, i) for i in a.ids]
     targets.sort(key=lambda p: p.id)
-    ctx.limits = False  # trusted oracle code, many parallel runs
-
-    def one(pack):
+    results = []
+    for pack in targets:
         item = {"id": pack.id}
+        results.append(item)
         if pack.type != "live-coding":
-            item.update(skipped="no code to run")
-            return item
+            item.update(skipped="no tests to check")
+            continue
+        if a.write_expected:
+            try:
+                item["written"] = reference.write_expected(pack)
+            except (PackError, ValueError, OSError) as exc:
+                item["pass"] = False
+                item.update(errors=["cannot write expected values: %s" % exc])
+                continue
+            except Exception as exc:
+                item["pass"] = False
+                item.update(errors=["the reference solution crashed: %s: %s" % (type(exc).__name__, exc)])
+                continue
+            pack = packs.load_pack(pack.path, pack.root, pack.root_label)
         errors, _w = packs.lint_pack(pack)
         if errors:
-            item.update(pass_=False, errors=errors)
-            return item
-        if not packs.is_trusted(ctx, pack.root_label, pack.root):
-            item.update(pass_=False, errors=["root not trusted: %s" % pack.root])
-            return item
+            item.update(errors=errors)
+            item["pass"] = False
+            continue
         try:
-            res = execute.selftest_pack(ctx, pack, fuzz=a.fuzz, perf=a.perf, factor=a.factor)
+            res = reference.selftest(pack)
         except Exception as exc:
-            item.update(pass_=False, errors=["selftest crashed: %s" % exc])
-            return item
-        sig = res.get("signature") or {"errors": []}
-        item.update(pass_=res["failed"] == 0 and not sig["errors"], passed=res["passed"], total=res["total"],
-                    by_category=res["by_category"], failures=[f for f in res["failures"] if f["shown"]][:2])
-        if sig["errors"]:
-            item["signature_errors"] = sig["errors"]
-        if a.perf and res["perf"].get("ran"):
-            item["perf"] = res["perf"]
-        return item
-
-    with ThreadPoolExecutor(max_workers=max(1, a.jobs)) as ex:
-        results = list(ex.map(one, targets))
-    for r in results:
-        if "pass_" in r:
-            r["pass"] = r.pop("pass_")
+            item["pass"] = False
+            item.update(errors=["the reference solution crashed: %s: %s" % (type(exc).__name__, exc)])
+            continue
+        item["pass"] = not res["failures"]
+        item.update(passed=res["passed"], total=res["total"])
+        if res["failures"]:
+            item["failures"] = res["failures"][:3]
     failed = [r for r in results if r.get("pass") is False]
     return {"ok": True, "checked": len(results), "failed": len(failed), "pass": not failed,
             "results": results if (failed or len(results) <= 5 or a.verbose) else
             [{"id": r["id"], "pass": r.get("pass"), "skipped": r.get("skipped")} for r in results]}
-
-
-def cmd_langs(ctx, a):
-    cat = languages.load_catalog(ctx)
-    items = []
-    for lang in sorted(cat.languages.values(), key=lambda x: x.id):
-        item = lang.summary()
-        item["trusted"] = packs.is_trusted(ctx, lang.root_label, lang.root)
-        found = lang.probe()
-        if lang.runtimes:
-            item["runtimes"] = found
-            first = next((r for r in found if r["available"]), None)
-            item.update(available=first is not None, runtime=first["id"] if first else None,
-                        version=first["version"] if first else None)
-        else:
-            item.update(available=found[0]["available"], version=found[0]["version"])
-        items.append(item)
-    out = {"ok": True, "default": languages.DEFAULT, "languages": items}
-    if cat.warnings:
-        out["warnings"] = cat.warnings
-    if cat.overrides:
-        out["overrides"] = cat.overrides
-    return out
-
-
-def cmd_trust(ctx, a):
-    root = packs.trust_root(ctx, a.root)
-    return {"ok": True, "trusted": root}
 
 
 # --------------------------------------------------------------- design tools

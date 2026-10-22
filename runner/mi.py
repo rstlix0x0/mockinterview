@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""mockinterview runner: sessions, problem selection, test running and scoring.
+"""mockinterview runner: sessions, problem selection, test results and scoring.
 
     python3 runner/mi.py [--project DIR] [--data DIR] [--root DIR] [--pretty] COMMAND [options]
 
@@ -8,7 +8,7 @@ Exit codes: 0 success, 1 user/state error or a failing test, 2 internal error.
 """
 import sys
 
-if sys.version_info < (3, 11):  # before any import that needs 3.11 (tomllib)
+if sys.version_info < (3, 11):  # before any other import
     sys.stdout.write('{"ok": false, "error": "Python 3.11 or newer is required", "code": "python_version"}\n')
     sys.exit(2)
 
@@ -31,9 +31,9 @@ def add_globals(p, suppress=False):
     p.add_argument("--pretty", action="store_true", default=d, help="indented JSON")
 
 
-def add_language(p):
-    p.add_argument("--lang", help="solution language id (default: python); see langs")
-    p.add_argument("--runtime", help="one of the language's runtimes (default: the first found)")
+def add_toolchain(p):
+    p.add_argument("--lang", help="the engineer's solution language, free text (default: python)")
+    p.add_argument("--test-cmd", help="the command that runs the engineer's tests, e.g. 'go test ./...'")
 
 
 def build_parser():
@@ -65,24 +65,23 @@ def build_parser():
     p.add_argument("--level", required=True)
     p.add_argument("--type")
     p.add_argument("--seed", type=int)
-    add_language(p)
+    add_toolchain(p)
 
     p = cmd("pick", commands.cmd_pick, "start a practice session on one problem")
     p.add_argument("id")
     p.add_argument("--replace", action="store_true", help="replace an unfinished practice session")
-    add_language(p)
-
-    cmd("langs", commands.cmd_langs, "list solution languages and whether their toolchain is installed")
+    add_toolchain(p)
 
     cmd("begin", commands.cmd_begin, "start the clock and reveal the statement")
 
-    p = cmd("run", commands.cmd_run, "run the tests against the solution file in work/")
-    p.add_argument("--mode", choices=("visible", "all"), default="all")
-    p.add_argument("--perf", action="store_true", help="also run the scaling checks")
-    p.add_argument("--fuzz", type=int, default=None, help="random cases (default: the pack's setting)")
-    p.add_argument("--seed", type=int, default=10000)
-    p.add_argument("--factor", type=float, default=1.0, help="multiply time limits")
-    p.add_argument("--timeout", type=float, default=execute_timeout())
+    p = cmd("tests", commands.cmd_tests, "the current round's test cases with expected values, as JSON")
+    p.add_argument("--all", action="store_true", help="also the edge and hidden cases (default: visible only)")
+
+    p = cmd("record", commands.cmd_record, "record the result of running the engineer's tests")
+    p.add_argument("--mode", choices=("visible", "all"), default="all", help="which case set was run")
+    p.add_argument("--failed", default="", help="comma-separated names of the failing cases (empty: all passed)")
+    p.add_argument("--got", action="append", help="NAME=VALUE: what a failing case returned (repeatable)")
+    p.add_argument("--error", help="the build or run failed before any case ran: its output (all cases fail)")
 
     cmd("hint", commands.cmd_hint, "give the next hint rung and record its cost")
 
@@ -110,17 +109,12 @@ def build_parser():
     p.add_argument("paths", nargs="*")
     p.add_argument("--all", action="store_true")
 
-    p = cmd("selftest", commands.cmd_selftest, "run each oracle against its own tests")
+    p = cmd("selftest", commands.cmd_selftest, "check each pack's expected values against its reference solution")
     p.add_argument("ids", nargs="*")
     p.add_argument("--all", action="store_true")
-    p.add_argument("--fuzz", type=int, default=None)
-    p.add_argument("--perf", action="store_true")
-    p.add_argument("--factor", type=float, default=1.0)
-    p.add_argument("--jobs", type=int, default=4)
+    p.add_argument("--write-expected", action="store_true",
+                   help="first set every case's expected value from the reference solution (rewrites the pack)")
     p.add_argument("--verbose", action="store_true")
-
-    p = cmd("trust", commands.cmd_trust, "acknowledge a non-built-in pack root")
-    p.add_argument("root")
 
     p = cmd("estimate-check", commands.cmd_estimate_check, "check work/estimate.json against the reference")
     p.add_argument("--tol", type=float, default=1.5)
@@ -129,11 +123,6 @@ def build_parser():
 
     cmd("design-lint", commands.cmd_design_lint, "structure check of work/design.md")
     return ap
-
-
-def execute_timeout():
-    from lib import execute
-    return execute.CASE_TIMEOUT
 
 
 def main(argv=None):
@@ -155,7 +144,7 @@ def main(argv=None):
               **({"traceback": detail} if detail else {})}, pretty)
         return 2
     emit(result, pretty)
-    if result.get("ok") and result.get("pass") is False and args.command in ("run", "selftest", "lint"):
+    if result.get("ok") and result.get("pass") is False and args.command in ("selftest", "lint"):
         return 1
     return 0
 

@@ -5,10 +5,8 @@ type: live-coding
 level: [junior]
 tags: [bit-manipulation]
 time_minutes: 10
-languages: [python]
 entry: single_number
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: A12
@@ -32,14 +30,6 @@ Every value in `nums` appears exactly twice except one value that appears once. 
 - **Example 2** - input: `{"nums":[4,1,2,1,2]}`  
   output: `4`
 
-## Stub
-
-```python
-def single_number(nums):
-    """single_number(nums: int[]) -> int"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -49,44 +39,32 @@ single_number(nums: int[]) -> int
 ## Tests
 
 ```json tests
-{"function":"single_number","kind":"func","compare":"exact","fuzz":15,"perf":{"sizes":[100000,500000,1000000],"limit_ms":3000,"max_exponent":1.4},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"nums":[2,2,1]}},
-{"name":"example-2","tags":["visible"],"args":{"nums":[4,1,2,1,2]}},
-{"name":"edge-single","tags":["edge"],"args":{"nums":[7]}},
-{"name":"edge-negative","tags":["edge"],"args":{"nums":[-3,5,5]}},
-{"name":"hidden-zero","tags":["hidden"],"args":{"nums":[0,1,1]}}
+{"function":"single_number","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"nums":[2,2,1]},"expected":1},
+{"name":"example-2","tags":["visible"],"args":{"nums":[4,1,2,1,2]},"expected":4},
+{"name":"edge-single","tags":["edge"],"args":{"nums":[7]},"expected":7},
+{"name":"edge-negative","tags":["edge"],"args":{"nums":[-3,5,5]},"expected":-3},
+{"name":"hidden-zero","tags":["hidden"],"args":{"nums":[0,1,1]},"expected":0},
+{"name":"random-1","tags":["hidden"],"args":{"nums":[-35,-47,-46,-35,40,-47,40,38,38]},"expected":-46},
+{"name":"random-2","tags":["hidden"],"args":{"nums":[-35,32,-42,2,3,24,-35,24,32,2,3]},"expected":-42},
+{"name":"random-3","tags":["hidden"],"args":{"nums":[-49,26,-37,-37,39,26,-21,-46,-49,39,-10,-10,-46]},"expected":-21},
+{"name":"random-4","tags":["hidden"],"args":{"nums":[-29,-29,3,0,-50,3,0]},"expected":-50}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 def solve(nums):
     r = 0
     for x in nums:
         r ^= x
     return r
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    vals = rnd.sample(range(-50, 50), rnd.randint(1, 8))
-    single = vals[0]
-    arr = vals[1:] * 2 + [single]
-    rnd.shuffle(arr)
-    return {"nums": arr}
-
-def gen_perf(n):
-    rnd = random.Random(212)
-    vals = rnd.sample(range(-10**9, 10**9), n // 2 + 1)
-    arr = vals[1:] * 2 + [vals[0]]
-    rnd.shuffle(arr)
-    return {"nums": arr}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(n) time, O(1) space
-- **Scaling check:** sizes [100000, 500000, 1000000], limit 3000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.4
 - **Clarifying questions (answer verbatim):**
   - Q: Can the unique value be negative or zero?  
     A: Yes.

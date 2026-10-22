@@ -4,7 +4,7 @@ This folder ships with the plugin; installing the plugin is all it takes to get 
 
 | Folder | Count | What |
 |---|---|---|
-| `live-coding/` | 57 | Python live-coding problems, tiers A (junior), B (junior to mid) and C (senior), each with hidden tests, an oracle and interviewer notes |
+| `live-coding/` | 57 | Live-coding problems for any language, tiers A (junior), B (junior to mid) and C (senior), each with a typed signature, visible, edge and hidden test cases with expected values, a Python reference solution and interviewer notes |
 | `system-design/` | 16 | Design problems S1 to S16 with interviewer notes, a reference design and a reference estimate |
 | `knowledge/` | 6 | Study guides and reference documents |
 

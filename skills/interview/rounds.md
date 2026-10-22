@@ -9,7 +9,7 @@ Shared by `/mockinterview:interview` and `/mockinterview:practice`. Read it once
 | Your role | Interviewer: neutral, terse | Partner: warm, collaborative, thinks along |
 | Problem | Drawn by the runner, hidden until "go" | Chosen by the engineer with `pick` |
 | Clarifying answers | `notes --section clarify`, word for word, only what is asked | Same; you may also say why the question matters |
-| Failing tests | Only what the runner marks `shown: true` | The runner shows up to three failures; ask questions to help them debug, still no code |
+| Failing tests | Only what `record` marks `shown: true` | `record` shows up to three failures; ask questions to help them debug, still no code |
 | Hints | On request, or offered after 5 quiet minutes | On request, or offered after 3 quiet minutes |
 | Follow-ups | Asked after the tests pass; graded | Optional, encouraged |
 | Praise | None until the debrief | Allowed, specific and honest |
@@ -32,39 +32,50 @@ You never read pack files. Do not open, grep, glob or `cat` anything under the p
 
 ## Live-coding round
 
-Work file: the `solution` path in `.mockinterview/session.json` (for example `.mockinterview/work/solution.py`; the extension follows the session's `language`). The engineer edits it in their own editor. You may read it at any time; you never edit it and never write solution code, not even partial code and not inside a hint.
+The engineer codes in their own language and toolchain, in `.mockinterview/work/` (the runner empties it at `begin` and archives the previous round's files). The session's `language` and `test_command` are in the `begin` output. You set up the harness; the engineer writes the solution. You may read their files at any time; you never edit their solution and never write solution code, not even partial code and not inside a hint.
 
 | Phase | What you do |
 |---|---|
 | Clarify | Answer questions from `notes --section clarify`. For a question that is not listed, give the most conventional reading and say it aloud as an assumption ("I'll treat that as X; tell me if you disagree"). Never answer a question that was not asked. Note privately whether they asked about empty input, limits, duplicates, ordering and errors. |
 | Approach | Before code, ask: "Walk me through the approach. What is the complexity, and is there a simpler version that is good enough?" Do not accept "brute force" without a stated cost. |
 | Code | Stay quiet. If they go silent for a long time, ask once what they are thinking about. Do not fill silences. |
-| Test and debug | Run tests only when the engineer explicitly asks for it. Notice whether they state a hypothesis before each edit. |
+| Test and debug | Run tests only when the engineer explicitly asks for it. Notice whether they state a hypothesis before each edit, and whether they write tests of their own. |
 | Follow-up | When the visible, edge and hidden cases pass, ask one or two follow-ups from `notes --section followups`, then "what would you change in the data structure if ...?" |
 | Wrap-up | "Thirty seconds: what you built, what you assumed, what you would do next." Then `finish`. |
 
+### Setting up (right after `begin`)
+
+1. Run `tests`. It returns the `signature` (language-neutral types: `int[]` is a list of ints, `T?` may be null, `[A, B]` a pair, `{string: T}` a map, `record{a: T, b?: U}` an object whose `b` may be absent), `kind`, `compare` and the `visible` cases with `args` and `expected`.
+2. Write a minimal project for the language in `.mockinterview/work/`: the manifest the test command needs (`go.mod`, `Cargo.toml`, `package.json` ...), only if it needs one, and a **stub**: the entry from the signature with the language's own naming (`two_sum` becomes `twoSum` in JavaScript, Go and Java) and types, and a body that fails (`raise NotImplementedError`, `panic("not implemented")`, `todo!()`). For `kind: ops` the stub is the class with its constructor and methods. Record and tuple types become the language's structs or classes in the stub file. The stub is scaffolding, not a solution: no logic in it.
+3. Write a **test file** in the language's usual test framework with one named test (or subtest) per visible case, named exactly as the case `name`, so failures map back. `func`: call the entry with `args` (by parameter name, in signature order) and compare with `expected`. `ops`: `args.calls` is a list of `[method, [arguments]]`; the first call is the constructor, and `expected` holds one value per call (`null` for the constructor and for methods that return nothing): replay the calls in order and compare each return. `compare: exact` means equal JSON values (list order matters, `null` is nil/None/absent); `compare: approx` means numbers within a relative error of 1e-4.
+4. Run the test command once, as `(cd .mockinterview/work && COMMAND)`, to check the harness works: every case should fail on the stub, and nothing should fail to build except the stub's own failure. Fix the harness, never the engineer's code. Do not record this run.
+5. Tell the engineer the files in one line: their solution file, the test file, and that they may add their own tests.
+
 ### Running tests
 
-Run `run` only when asked. Never run it to peek, never run it "because they have been quiet". Map the request to options:
+Run tests only when the engineer asks. Never run them to peek, never run them "because they have been quiet". Run the test command in a subshell from the project folder, `(cd .mockinterview/work && COMMAND)`, so your working directory stays the project folder.
 
-| The engineer says | Command |
+| The engineer says | You do |
 |---|---|
-| "run my tests", "check it" | `run --mode all` |
-| "just the examples" | `run --mode visible` |
-| "does it scale", "check performance" | `run --mode all --perf` |
-| "try random inputs" | `run --mode all --fuzz 20` |
+| "just the examples" | Run the test command. Then `record --mode visible --failed NAMES` |
+| "run my tests", "check it" | Run `tests --all`. Write the edge and hidden cases to a second test file named so the test command picks it up (for example `mi_hidden_test.go`, `test_mi_hidden.py`, `mi_hidden.test.js`). Run the test command, then `record --mode all --failed NAMES`. Delete the second file right after |
 
-Report from the JSON, exactly:
+- `NAMES` is the comma-separated list of failing case names (empty when everything passed). Add `--got NAME=VALUE` for a failing visible case when the output shows what it returned.
+- When nothing could run (a compile error, a syntax error, a crash before any test), run `record --mode ... --error "<the last lines of the output>"`: every case of that set fails. Show the output as it is; it is the engineer's own code.
+- Only cases from `tests` count. Tests the engineer wrote themselves are theirs to read; do not record them.
+
+Report from the `record` output, exactly:
 
 1. `passed` of `total`, then `by_category` as written (for example `visible 3/3, edge 3/4, hidden 5/6`).
-2. For each entry of `failures` with `shown: true`: name, `args`, `expected`, `got`, copied as they are.
-3. For `shown: false`: only the category counts. Say "I can't show more than the counts for those." If they ask which input fails, say that is not available in this round and that a hint is the way to get help (it costs points).
-4. Performance: the lines in `perf.lines`, as written.
-5. Do not interpret a failing hidden case, and never guess what it is.
+2. For each entry of `failures` with `shown: true`: name, `args`, `expected`, and `got` when present, copied as they are.
+3. For `shown: false`: only the category counts. Say "I can't show more than the counts for those." If they ask which input fails, say that is not available in this round and that a hint is the way to get help (it costs points). You saw the hidden cases while writing the file: never repeat, hint at or paraphrase them.
+4. Do not interpret a failing hidden case, and never guess what it is.
+
+There is no timing test. Ask for the complexity in the approach phase and again after the tests pass; the target is in `notes --section reference` (read it after the round). A clearly too slow approach counts against `quality` and `approach`, not `implementation`.
 
 If the statement and a test disagree, the statement wins. Say so, do not penalise the engineer, and mention it in the debrief as a possible pack bug.
 
-Library rule: standard containers and sorting are fine. If a built-in makes the exercise trivial (an ordered dictionary for an LRU cache, `eval` for an expression evaluator, a regex engine for a parser), say once: "please do that part by hand."
+Library rule: in an interview round only the language's standard library is allowed; if you see a third-party package, say once that it has to go. Standard containers and sorting are fine. If a built-in makes the exercise trivial (an ordered dictionary for an LRU cache, `eval` for an expression evaluator, a regex engine for a parser), say once: "please do that part by hand."
 
 ## System-design round
 

@@ -1,11 +1,8 @@
-"""Pack parsing, discovery, trust and lint. Standard library only."""
+"""Pack parsing, discovery and lint. Standard library only."""
 import ast
 import json
 import os
 import re
-
-from . import glue, signature as sigmod
-from .util import MiError, atomic_write, read_json
 
 LEVELS = ["junior", "mid", "senior", "staff"]
 TYPES = ["live-coding", "system-design", "knowledge"]
@@ -15,8 +12,8 @@ ID_PREFIX = {"live-coding": "lc-", "system-design": "sd-", "knowledge": "kb-"}
 TAGS = ("visible", "edge", "hidden")
 LADDER_RE = re.compile(r"^\s*[-*]\s*([HP])([0-3])\s*\((free|-?\d+)\)\s*:\s*(.+?)\s*$")
 
-HIDDEN_SECTIONS = {"tests", "oracle", "interviewer notes", "reference estimate"}
-ENGINEER_SECTIONS = {"statement", "stub", "self-check questions"}
+HIDDEN_SECTIONS = {"tests", "reference solution", "interviewer notes", "reference estimate"}
+ENGINEER_SECTIONS = {"statement", "signature", "self-check questions"}
 
 
 class PackError(Exception):
@@ -180,9 +177,6 @@ class Pack:
         }
 
     # live-coding helpers
-    def stub(self):
-        return find_fence(self.sections.get("stub", ""), "python")
-
     def suite(self):
         raw = find_fence(self.sections.get("tests", ""), "json tests")
         if raw is None:
@@ -192,13 +186,13 @@ class Pack:
         except ValueError as exc:
             raise PackError("tests block is not valid JSON: %s" % exc)
 
-    def oracle_source(self):
-        return find_fence(self.sections.get("oracle", ""), "python oracle")
+    def reference_source(self):
+        return find_fence(self.sections.get("reference solution", ""), "python reference")
 
     def signature(self):
-        """The parsed ```signature block, or None when the pack has none. Raises SignatureError."""
+        """The text of the ```signature block, or None."""
         raw = find_fence(self.sections.get("signature", ""), "signature")
-        return None if raw is None else sigmod.parse(raw, self.meta.get("kind"))
+        return None if raw is None else raw.strip("\n")
 
     def reference_estimate(self):
         raw = find_fence(self.sections.get("reference estimate", ""), "json estimate")
@@ -234,32 +228,13 @@ class Index:
         self.packs = {}        # id -> Pack (winners)
         self.overrides = []    # [{"id", "winner", "loser"}]
         self.warnings = []     # [{"path", "message"}]
-        self.roots = []        # [{"label", "path", "exists", "trusted", "count"}]
-
-
-def load_trust(ctx):
-    data = read_json(ctx.trust_path, {}) or {}
-    return set(data.get("roots", []))
-
-
-def trust_root(ctx, root):
-    root = os.path.abspath(os.path.expanduser(root))
-    trusted = load_trust(ctx)
-    trusted.add(root)
-    atomic_write(ctx.trust_path, json.dumps({"roots": sorted(trusted)}, indent=2) + "\n")
-    return root
-
-
-def is_trusted(ctx, label, root):
-    return label == "built-in" or os.path.abspath(root) in load_trust(ctx)
+        self.roots = []        # [{"label", "path", "exists", "count"}]
 
 
 def build_index(ctx):
     index = Index()
-    trusted = load_trust(ctx)
     for label, root in ctx.all_roots():
-        info = {"label": label, "path": root, "exists": os.path.isdir(root), "count": 0,
-                "trusted": label == "built-in" or os.path.abspath(root) in trusted}
+        info = {"label": label, "path": root, "exists": os.path.isdir(root), "count": 0}
         index.roots.append(info)
         if not info["exists"]:
             continue
@@ -288,32 +263,6 @@ def build_index(ctx):
     return index
 
 
-def stub_signatures(source, name):
-    """([params], [(method, [params]), ...]) of the function or class `name` in the pack's Python stub.
-
-    For a class, the params are the constructor's; `self` and dunder methods are left out. (None, []) when the
-    stub does not define `name`."""
-    try:
-        tree = ast.parse(source)
-    except SyntaxError:
-        return None, []
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name:
-            return [a.arg for a in node.args.args], []
-        if isinstance(node, ast.ClassDef) and node.name == name:
-            params, methods = [], []
-            for item in node.body:
-                if not isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    continue
-                names = [a.arg for a in item.args.args][1:]
-                if item.name == "__init__":
-                    params = names
-                elif not item.name.startswith("__"):
-                    methods.append((item.name, names))
-            return params, methods
-    return None, []
-
-
 # ----------------------------------------------------------------------- lint
 
 def _list_of(meta, key):
@@ -321,7 +270,7 @@ def _list_of(meta, key):
     return v if isinstance(v, list) else ([] if v is None else [v])
 
 
-def lint_pack(pack, check_oracle=True):
+def lint_pack(pack, check_reference=True):
     """Return (errors, warnings) for one loaded pack."""
     errors, warnings = [], []
     meta = pack.meta
@@ -352,7 +301,7 @@ def lint_pack(pack, check_oracle=True):
         err("time_minutes must be an integer")
 
     if ptype == "live-coding":
-        _lint_live_coding(pack, err, warn, check_oracle)
+        _lint_live_coding(pack, err, warn, check_reference)
     elif ptype == "system-design":
         if not pack.section("statement"):
             err("missing section '## Statement'")
@@ -374,72 +323,62 @@ def lint_pack(pack, check_oracle=True):
     return errors, warnings
 
 
-def _lint_signature(pack, stub, err, warn):
-    """The ## Signature must parse and name exactly the stub's function or class, methods and parameters."""
-    if not pack.section("signature"):
-        warn("no '## Signature'; typed languages (Go, Rust) will not offer this pack")
-        return
-    try:
-        sig = pack.signature()
-    except sigmod.SignatureError as exc:
-        err("signature: %s" % exc)
-        return
-    if sig is None:
-        err("## Signature needs one fenced 'signature' block")
-        return
-    for name in glue.GENERATORS:
-        try:
-            glue.get(name).check(sig)
-        except glue.Unsupported as exc:
-            warn("signature: not offered in %s: %s" % (name.capitalize(), exc))
-    entry, kind = pack.meta.get("entry"), pack.meta.get("kind")
-    if sig.name != entry:
-        err("signature: %s must be the entry %s" % (sig.name, entry))
-        return
-    if not stub or kind not in ("func", "ops"):
-        return
-    params, methods = stub_signatures(stub, entry)
-    if params is None:
-        return
-    names = [n for n, _t in sig.params]
-    if names != params:
-        err("signature: %s(%s) must have the stub's parameters (%s)" % (entry, ", ".join(names), ", ".join(params)))
-    if kind == "ops":
-        stub_methods = dict(methods)
-        for m in sig.methods:
-            if m.name not in stub_methods:
-                err("signature: method %s is not in the stub" % m.name)
-            elif [n for n, _t in m.params] != stub_methods[m.name]:
-                err("signature: %s(%s) must have the stub's parameters (%s)" % (
-                    m.name, ", ".join(n for n, _t in m.params), ", ".join(stub_methods[m.name])))
-        for name in stub_methods:
-            if sig.method(name) is None:
-                err("signature: the stub's method %s is missing" % name)
+def _split_top(text):
+    """Split on commas that are not inside (), [], {} or <>."""
+    parts, depth, buf = [], 0, ""
+    for ch in text:
+        if ch in "([{<":
+            depth += 1
+        elif ch in ")]}>":
+            depth -= 1
+        if ch == "," and depth == 0:
+            parts.append(buf)
+            buf = ""
+        else:
+            buf += ch
+    if buf.strip():
+        parts.append(buf)
+    return [p.strip() for p in parts]
 
 
-def _lint_live_coding(pack, err, warn, check_oracle):
+def signature_lines(text):
+    """[(name, [param names])] of each declaration line in a signature block, comments left out."""
+    out = []
+    for line in text.split("\n"):
+        line = line.split("#", 1)[0].strip()
+        m = re.match(r"^([A-Za-z_]\w*)\s*\((.*)\)(?:\s*->.*)?$", line)
+        if line and not m:
+            return None
+        if m:
+            params = [p.split(":", 1)[0].strip() for p in _split_top(m.group(2))]
+            out.append((m.group(1), params))
+    return out
+
+
+def _lint_live_coding(pack, err, warn, check_reference):
     meta = pack.meta
     for key in ("entry", "kind"):
         if not meta.get(key):
             err("frontmatter: missing '%s'" % key)
     if meta.get("kind") not in (None, "func", "ops"):
         err("kind must be 'func' or 'ops'")
-    if "python" not in _list_of(meta, "languages"):
-        err("languages must include python")
-    if meta.get("runs_code") is not True:
-        err("runs_code must be true for live-coding packs")
-    for name in ("statement", "stub", "tests", "oracle"):
+    for name in ("statement", "signature", "tests", "reference solution"):
         if not pack.section(name):
-            err("missing section '## %s'" % name.capitalize())
+            err("missing section '## %s'" % (name[0].upper() + name[1:]))
     if not pack.notes():
         warn("missing '## Interviewer notes'")
     elif len(pack.ladder()) < 4:
         warn("interviewer notes have fewer than four hint rungs (H0 to H3)")
-    stub = pack.stub()
-    if pack.section("stub") and not stub:
-        err("## Stub needs one fenced 'python' block")
-    params = stub_signatures(stub, meta.get("entry") or "")[0] if stub and meta.get("kind") == "func" else None
-    _lint_signature(pack, stub, err, warn)
+    params = None
+    if pack.section("signature"):
+        sig = pack.signature()
+        lines = signature_lines(sig) if sig is not None else None
+        if not lines:
+            err("## Signature needs one fenced 'signature' block of lines like name(param: type) -> type")
+        elif lines[0][0] != meta.get("entry"):
+            err("signature: the first line must declare the entry %s" % meta.get("entry"))
+        else:
+            params = lines[0][1]
     suite = None
     if pack.section("tests"):
         try:
@@ -453,6 +392,9 @@ def _lint_live_coding(pack, err, warn, check_oracle):
             err("tests 'kind' (%r) must equal frontmatter 'kind' (%r)" % (suite.get("kind"), meta.get("kind")))
         if suite.get("compare", "exact") not in ("exact", "approx"):
             err("tests 'compare' must be exact or approx")
+        for key in ("fuzz", "perf"):
+            if key in suite:
+                warn("tests '%s' is no longer used; add the cases you want as hidden cases" % key)
         cases = suite.get("cases")
         if not isinstance(cases, list) or not cases:
             err("tests need a non-empty 'cases' list")
@@ -468,43 +410,38 @@ def _lint_live_coding(pack, err, warn, check_oracle):
                 err("case '%s' must have exactly one tag from %s" % (name, ", ".join(TAGS)))
             else:
                 tagcount[tags[0]] += 1
+            if "expected" not in c:
+                err("case '%s' needs an 'expected' value (selftest checks it against the reference)" % name)
             args = c.get("args")
             if suite.get("kind") == "ops":
                 calls = args.get("calls") if isinstance(args, dict) else None
                 if not (isinstance(calls, list) and calls and isinstance(calls[0], list)
                         and calls[0][0] == suite.get("function")):
                     err("ops case '%s' must start with a constructor call to %s" % (name, suite.get("function")))
+                elif isinstance(c.get("expected"), list) and len(c["expected"]) != len(calls):
+                    err("ops case '%s' needs one expected value per call (null for the constructor)" % name)
             elif not isinstance(args, dict):
                 err("case '%s' needs an 'args' object" % name)
             elif params is not None and sorted(args) != sorted(params):
-                err("case '%s' args %s must be the stub's parameters %s" % (name, sorted(args), params))
+                err("case '%s' args %s must be the signature's parameters %s" % (name, sorted(args), params))
         if tagcount["visible"] == 0:
             err("at least one 'visible' case is required")
         if tagcount["hidden"] == 0:
             warn("no 'hidden' cases")
         if tagcount["edge"] == 0:
             warn("no 'edge' cases")
-        perf = suite.get("perf")
-        if perf is not None and not (isinstance(perf.get("sizes"), list) and perf.get("limit_ms")):
-            err("perf needs 'sizes' (list) and 'limit_ms'")
-    src = pack.oracle_source()
-    if pack.section("oracle") and not src:
-        err("## Oracle needs one fenced 'python oracle' block")
-    if src and check_oracle:
+    src = pack.reference_source()
+    if pack.section("reference solution") and not src:
+        err("## Reference solution needs one fenced 'python reference' block")
+    if src and check_reference:
         try:
-            code = compile(src, "oracle", "exec")
+            tree = ast.parse(src)
         except SyntaxError as exc:
-            err("oracle does not compile: %s" % exc)
+            err("reference solution does not compile: %s" % exc)
             return
-        # check that required names exist without running generators
-        tree = ast.parse(src)
         names = {n.name for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))}
         entry = meta.get("entry")
         if meta.get("kind") == "func" and "solve" not in names:
-            err("oracle must define solve(...)")
+            err("reference solution must define solve(...)")
         if meta.get("kind") == "ops" and entry not in names:
-            err("oracle must define class %s" % entry)
-        if suite and (suite.get("fuzz") or 0) > 0 and "gen_random" not in names:
-            err("oracle must define gen_random(seed) because the tests ask for fuzz")
-        if suite and suite.get("perf") and "gen_perf" not in names:
-            err("oracle must define gen_perf(n) because the tests ask for a perf check")
+            err("reference solution must define class %s" % entry)

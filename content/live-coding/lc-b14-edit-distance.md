@@ -5,10 +5,8 @@ type: live-coding
 level: [junior, mid]
 tags: [dynamic-programming, strings]
 time_minutes: 30
-languages: [python]
 entry: edit_distance
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: B14
@@ -32,14 +30,6 @@ Return the minimum number of single-character insertions, deletions and substitu
 - **Example 2** - input: `{"a":"intention","b":"execution"}`  
   output: `5`
 
-## Stub
-
-```python
-def edit_distance(a, b):
-    """edit_distance(a: string, b: string) -> int"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -49,20 +39,24 @@ edit_distance(a: string, b: string) -> int
 ## Tests
 
 ```json tests
-{"function":"edit_distance","kind":"func","compare":"exact","fuzz":25,"perf":{"sizes":[200,800,1500],"limit_ms":6000,"max_exponent":2.4},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"a":"horse","b":"ros"}},
-{"name":"example-2","tags":["visible"],"args":{"a":"intention","b":"execution"}},
-{"name":"edge-both-empty","tags":["edge"],"args":{"a":"","b":""}},
-{"name":"edge-one-empty","tags":["edge"],"args":{"a":"","b":"abc"}},
-{"name":"edge-equal","tags":["edge"],"args":{"a":"same","b":"same"}},
-{"name":"hidden-transpose","tags":["hidden"],"args":{"a":"ab","b":"ba"}},
-{"name":"hidden-prefix","tags":["hidden"],"args":{"a":"abc","b":"abcdef"}}
+{"function":"edit_distance","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"a":"horse","b":"ros"},"expected":3},
+{"name":"example-2","tags":["visible"],"args":{"a":"intention","b":"execution"},"expected":5},
+{"name":"edge-both-empty","tags":["edge"],"args":{"a":"","b":""},"expected":0},
+{"name":"edge-one-empty","tags":["edge"],"args":{"a":"","b":"abc"},"expected":3},
+{"name":"edge-equal","tags":["edge"],"args":{"a":"same","b":"same"},"expected":0},
+{"name":"hidden-transpose","tags":["hidden"],"args":{"a":"ab","b":"ba"},"expected":2},
+{"name":"hidden-prefix","tags":["hidden"],"args":{"a":"abc","b":"abcdef"},"expected":3},
+{"name":"random-1","tags":["hidden"],"args":{"a":"acac","b":""},"expected":4},
+{"name":"random-2","tags":["hidden"],"args":{"a":"aabcb","b":"c"},"expected":4},
+{"name":"random-3","tags":["hidden"],"args":{"a":"aacacb","b":""},"expected":6},
+{"name":"random-4","tags":["hidden"],"args":{"a":"aba","b":"bbbbba"},"expected":4}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 def solve(a, b):
     if len(a) < len(b):
         a, b = b, a
@@ -73,21 +67,11 @@ def solve(a, b):
             cur[j] = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb))
         prev = cur
     return prev[-1]
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    return {"a": ''.join(rnd.choice("abc") for _ in range(rnd.randint(0, 7))),
-            "b": ''.join(rnd.choice("abc") for _ in range(rnd.randint(0, 7)))}
-
-def gen_perf(n):
-    rnd = random.Random(14)
-    return {"a": ''.join(rnd.choice("abc") for _ in range(n)), "b": ''.join(rnd.choice("abc") for _ in range(n))}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(|a| * |b|) time, O(min(|a|, |b|)) space with two rows
-- **Scaling check:** sizes [200, 800, 1500], limit 6000 ms (calibrated to a straightforward Python solution), growth exponent at most 2.4
 - **Clarifying questions (answer verbatim):**
   - Q: Is a swap of adjacent characters one operation?  
     A: No: only insert, delete, substitute.

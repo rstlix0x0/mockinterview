@@ -5,10 +5,8 @@ type: live-coding
 level: [junior]
 tags: [dynamic-programming]
 time_minutes: 15
-languages: [python]
 entry: max_robbed
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: A15
@@ -33,14 +31,6 @@ legacy_id: A15
 - **Example 2** - input: `{"nums":[2,7,9,3,1]}`  
   output: `12`
 
-## Stub
-
-```python
-def max_robbed(nums):
-    """max_robbed(nums: int[]) -> int"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -50,38 +40,33 @@ max_robbed(nums: int[]) -> int
 ## Tests
 
 ```json tests
-{"function":"max_robbed","kind":"func","compare":"exact","fuzz":25,"perf":{"sizes":[100000,500000,1000000],"limit_ms":3000,"max_exponent":1.4},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"nums":[1,2,3,1]}},
-{"name":"example-2","tags":["visible"],"args":{"nums":[2,7,9,3,1]}},
-{"name":"edge-empty","tags":["edge"],"args":{"nums":[]}},
-{"name":"edge-single","tags":["edge"],"args":{"nums":[5]}},
-{"name":"hidden-skip-two","tags":["hidden"],"args":{"nums":[5,1,1,5]}},
-{"name":"hidden-zeros","tags":["hidden"],"args":{"nums":[0,0,0]}}
+{"function":"max_robbed","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"nums":[1,2,3,1]},"expected":4},
+{"name":"example-2","tags":["visible"],"args":{"nums":[2,7,9,3,1]},"expected":12},
+{"name":"edge-empty","tags":["edge"],"args":{"nums":[]},"expected":0},
+{"name":"edge-single","tags":["edge"],"args":{"nums":[5]},"expected":5},
+{"name":"hidden-skip-two","tags":["hidden"],"args":{"nums":[5,1,1,5]},"expected":10},
+{"name":"hidden-zeros","tags":["hidden"],"args":{"nums":[0,0,0]},"expected":0},
+{"name":"random-1","tags":["hidden"],"args":{"nums":[4,0,1,0,0,4,8,5,2]},"expected":15},
+{"name":"random-2","tags":["hidden"],"args":{"nums":[1,1,6,9,6]},"expected":13},
+{"name":"random-3","tags":["hidden"],"args":{"nums":[3,1,9,0,5,0]},"expected":17},
+{"name":"random-4","tags":["hidden"],"args":{"nums":[0,6,2]},"expected":6}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 def solve(nums):
     take, skip = 0, 0
     for x in nums:
         take, skip = skip + x, max(take, skip)
     return max(take, skip)
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    return {"nums": [rnd.randint(0, 9) for _ in range(rnd.randint(0, 10))]}
-
-def gen_perf(n):
-    rnd = random.Random(215)
-    return {"nums": [rnd.randint(0, 1000) for _ in range(n)]}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(n) time, O(1) space
-- **Scaling check:** sizes [100000, 500000, 1000000], limit 3000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.4
 - **Clarifying questions (answer verbatim):**
   - Q: Is the street circular?  
     A: No. (That is a good follow-up.)

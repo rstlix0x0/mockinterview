@@ -5,10 +5,8 @@ type: live-coding
 level: [junior, mid]
 tags: [heap, k-way-merge]
 time_minutes: 25
-languages: [python]
 entry: merge_k_sorted
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: B26
@@ -33,14 +31,6 @@ Merge `k` individually sorted (ascending) lists of integers into one sorted list
 - **Example 2** - input: `{"lists":[[],[1]]}`  
   output: `[1]`
 
-## Stub
-
-```python
-def merge_k_sorted(lists):
-    """merge_k_sorted(lists: int[][]) -> int[]"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -50,18 +40,24 @@ merge_k_sorted(lists: int[][]) -> int[]
 ## Tests
 
 ```json tests
-{"function":"merge_k_sorted","kind":"func","compare":"exact","fuzz":30,"perf":{"sizes":[50000,200000,500000],"limit_ms":5000,"max_exponent":1.5},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"lists":[[1,4,5],[1,3,4],[2,6]]}},
-{"name":"example-2","tags":["visible"],"args":{"lists":[[],[1]]}},
-{"name":"edge-no-lists","tags":["edge"],"args":{"lists":[]}},
-{"name":"edge-all-empty","tags":["edge"],"args":{"lists":[[],[],[]]}},
-{"name":"hidden-duplicates","tags":["hidden"],"args":{"lists":[[1,1],[1],[1,1]]}}
+{"function":"merge_k_sorted","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"lists":[[1,4,5],[1,3,4],[2,6]]},"expected":[1,1,2,3,4,4,5,6]},
+{"name":"example-2","tags":["visible"],"args":{"lists":[[],[1]]},"expected":[1]},
+{"name":"edge-no-lists","tags":["edge"],"args":{"lists":[]},"expected":[]},
+{"name":"edge-all-empty","tags":["edge"],"args":{"lists":[[],[],[]]},"expected":[]},
+{"name":"hidden-duplicates","tags":["hidden"],"args":{"lists":[[1,1],[1],[1,1]]},"expected":[1,1,1,1,1]},
+{"name":"random-1","tags":["hidden"],"args":{"lists":[[-8,-6],[-9,-9,-1,1,7],[-6],[-9,-9,0,3,9]]},"expected":[-9,-9,-9,-9,-8,-6,-6,-1,0,1,3,7,9]},
+{"name":"random-2","tags":["hidden"],"args":{"lists":[[],[]]},"expected":[]},
+{"name":"random-3","tags":["hidden"],"args":{"lists":[[-6],[-9,-8,1,7],[-2,2]]},"expected":[-9,-8,-6,-2,1,2,7]},
+{"name":"random-4","tags":["hidden"],"args":{"lists":[[]]},"expected":[]}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
+import heapq
+
 def solve(lists):
     heap = [(l[0], i, 0) for i, l in enumerate(lists) if l]
     heapq.heapify(heap)
@@ -72,21 +68,11 @@ def solve(lists):
         if j + 1 < len(lists[i]):
             heapq.heappush(heap, (lists[i][j + 1], i, j + 1))
     return out
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    return {"lists": [sorted(rnd.randint(-9, 9) for _ in range(rnd.randint(0, 5))) for _ in range(rnd.randint(0, 5))]}
-
-def gen_perf(n):
-    rnd = random.Random(226)
-    k = 1000
-    return {"lists": [sorted(rnd.randint(0, 10**9) for _ in range(n // k)) for _ in range(k)]}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(N log k) time, O(k) extra space
-- **Scaling check:** sizes [50000, 200000, 500000], limit 5000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.5
 - **Clarifying questions (answer verbatim):**
   - Q: Is a stable merge required?  
     A: Not observable for integers.

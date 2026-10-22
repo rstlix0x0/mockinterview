@@ -5,10 +5,8 @@ type: live-coding
 level: [junior, mid]
 tags: [tree, ancestors]
 time_minutes: 30
-languages: [python]
 entry: lowest_common_ancestor
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: B22
@@ -32,14 +30,6 @@ A binary tree with **distinct** values is given in level-order with `null` for m
 - **Example 2** - input: `{"tree":[3,5,1,6,2,0,8],"p":5,"q":2}`  
   output: `5`
 
-## Stub
-
-```python
-def lowest_common_ancestor(tree, p, q):
-    """lowest_common_ancestor(tree: (int | null)[], p: int, q: int) -> int"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -49,18 +39,24 @@ lowest_common_ancestor(tree: int?[], p: int, q: int) -> int
 ## Tests
 
 ```json tests
-{"function":"lowest_common_ancestor","kind":"func","compare":"exact","fuzz":40,"perf":{"sizes":[10000,50000,100000],"limit_ms":4000,"max_exponent":1.5},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"tree":[3,5,1,6,2,0,8],"p":5,"q":1}},
-{"name":"example-2","tags":["visible"],"args":{"tree":[3,5,1,6,2,0,8],"p":5,"q":2}},
-{"name":"edge-same-node","tags":["edge"],"args":{"tree":[1,2,3],"p":2,"q":2}},
-{"name":"edge-root-is-lca","tags":["edge"],"args":{"tree":[1,2,3],"p":2,"q":3}},
-{"name":"hidden-deep","tags":["hidden"],"args":{"tree":[1,2,null,3,null,4],"p":4,"q":3}}
+{"function":"lowest_common_ancestor","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"tree":[3,5,1,6,2,0,8],"p":5,"q":1},"expected":3},
+{"name":"example-2","tags":["visible"],"args":{"tree":[3,5,1,6,2,0,8],"p":5,"q":2},"expected":5},
+{"name":"edge-same-node","tags":["edge"],"args":{"tree":[1,2,3],"p":2,"q":2},"expected":2},
+{"name":"edge-root-is-lca","tags":["edge"],"args":{"tree":[1,2,3],"p":2,"q":3},"expected":1},
+{"name":"hidden-deep","tags":["hidden"],"args":{"tree":[1,2,null,3,null,4],"p":4,"q":3},"expected":3},
+{"name":"random-1","tags":["hidden"],"args":{"tree":[97,38,null,4],"p":4,"q":4},"expected":4},
+{"name":"random-2","tags":["hidden"],"args":{"tree":[8,15,53,null,74,52,82,9],"p":9,"q":53},"expected":8},
+{"name":"random-3","tags":["hidden"],"args":{"tree":[29,null,13,76,4,89,40,1,null,64],"p":89,"q":29},"expected":29},
+{"name":"random-4","tags":["hidden"],"args":{"tree":[0,53,21,50,38],"p":0,"q":0},"expected":0}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
+from collections import deque
+
 def solve(tree, p, q):
     parent, left, right, value_at = {}, {}, {}, {}
     dq = deque([0])
@@ -85,35 +81,11 @@ def solve(tree, p, q):
     while y not in anc:
         y = parent[y]
     return tree[y]
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    n = rnd.randint(2, 12)
-    vals = rnd.sample(range(100), n)
-    tree, dq, used = [vals[0]], deque([0]), 1
-    while dq and used < n:
-        dq.popleft()
-        for _ in range(2):
-            if used < n and rnd.random() < 0.75:
-                tree.append(vals[used]); dq.append(len(tree) - 1); used += 1
-            else:
-                tree.append(None)
-    while tree and tree[-1] is None:
-        tree.pop()
-    present = [v for v in tree if v is not None]
-    return {"tree": tree, "p": rnd.choice(present), "q": rnd.choice(present)}
-
-def gen_perf(n):
-    tree = [0]
-    for i in range(1, n):
-        tree += [i, None]
-    return {"tree": tree, "p": n - 1, "q": n // 2}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(n) time
-- **Scaling check:** sizes [10000, 50000, 100000], limit 4000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.5
 - **Clarifying questions (answer verbatim):**
   - Q: Is the tree a BST?  
     A: No.

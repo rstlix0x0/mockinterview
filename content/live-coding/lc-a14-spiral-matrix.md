@@ -5,10 +5,8 @@ type: live-coding
 level: [junior]
 tags: [matrix, simulation]
 time_minutes: 20
-languages: [python]
 entry: spiral_order
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: A14
@@ -33,14 +31,6 @@ Return all elements of a rectangular matrix in clockwise spiral order, starting 
 - **Example 2** - input: `{"matrix":[[1,2,3,4],[5,6,7,8],[9,10,11,12]]}`  
   output: `[1,2,3,4,8,12,11,10,9,5,6,7]`
 
-## Stub
-
-```python
-def spiral_order(matrix):
-    """spiral_order(matrix: int[][]) -> int[]"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -50,19 +40,23 @@ spiral_order(matrix: int[][]) -> int[]
 ## Tests
 
 ```json tests
-{"function":"spiral_order","kind":"func","compare":"exact","fuzz":25,"perf":{"sizes":[200,500,1000],"limit_ms":4000,"max_exponent":2.4},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"matrix":[[1,2,3],[4,5,6],[7,8,9]]}},
-{"name":"example-2","tags":["visible"],"args":{"matrix":[[1,2,3,4],[5,6,7,8],[9,10,11,12]]}},
-{"name":"edge-empty","tags":["edge"],"args":{"matrix":[]}},
-{"name":"edge-single-row","tags":["edge"],"args":{"matrix":[[1,2,3]]}},
-{"name":"edge-single-col","tags":["edge"],"args":{"matrix":[[1],[2],[3]]}},
-{"name":"hidden-two-by-one","tags":["hidden"],"args":{"matrix":[[1],[2]]}}
+{"function":"spiral_order","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"matrix":[[1,2,3],[4,5,6],[7,8,9]]},"expected":[1,2,3,6,9,8,7,4,5]},
+{"name":"example-2","tags":["visible"],"args":{"matrix":[[1,2,3,4],[5,6,7,8],[9,10,11,12]]},"expected":[1,2,3,4,8,12,11,10,9,5,6,7]},
+{"name":"edge-empty","tags":["edge"],"args":{"matrix":[]},"expected":[]},
+{"name":"edge-single-row","tags":["edge"],"args":{"matrix":[[1,2,3]]},"expected":[1,2,3]},
+{"name":"edge-single-col","tags":["edge"],"args":{"matrix":[[1],[2],[3]]},"expected":[1,2,3]},
+{"name":"hidden-two-by-one","tags":["hidden"],"args":{"matrix":[[1],[2]]},"expected":[1,2]},
+{"name":"random-1","tags":["hidden"],"args":{"matrix":[[4,88,15],[90,3,83],[98,80,0],[33,64,41],[22,13,86]]},"expected":[4,88,15,83,0,41,86,13,22,33,98,90,3,80,64]},
+{"name":"random-2","tags":["hidden"],"args":{"matrix":[[15],[53],[74]]},"expected":[15,53,74]},
+{"name":"random-3","tags":["hidden"],"args":{"matrix":[[13,76],[4,89],[40,1],[64,34]]},"expected":[13,76,89,1,34,64,40,4]},
+{"name":"random-4","tags":["hidden"],"args":{"matrix":[[53],[21]]},"expected":[53,21]}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 def solve(matrix):
     if not matrix:
         return []
@@ -84,20 +78,11 @@ def solve(matrix):
                 out.append(matrix[r][left])
             left += 1
     return out
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    r, c = rnd.randint(1, 5), rnd.randint(1, 5)
-    return {"matrix": [[rnd.randint(0, 99) for _ in range(c)] for _ in range(r)]}
-
-def gen_perf(n):
-    return {"matrix": [list(range(i * n, i * n + n)) for i in range(n)]}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(rows * cols)
-- **Scaling check:** sizes [200, 500, 1000], limit 4000 ms (calibrated to a straightforward Python solution), growth exponent at most 2.4
 - **Clarifying questions (answer verbatim):**
   - Q: Is a matrix with zero columns possible?  
     A: Treat `[]` as the only empty case.

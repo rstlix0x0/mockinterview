@@ -5,10 +5,8 @@ type: live-coding
 level: [junior, mid]
 tags: [hash-map, heap, sorting]
 time_minutes: 20
-languages: [python]
 entry: top_k_frequent
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: B3
@@ -33,14 +31,6 @@ Return the `k` most frequent values in `nums`, ordered by frequency descending a
 - **Example 2** - input: `{"nums":[4,4,5,5,6],"k":2}`  
   output: `[4,5]`
 
-## Stub
-
-```python
-def top_k_frequent(nums, k):
-    """top_k_frequent(nums: int[], k: int) -> int[]"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -50,36 +40,32 @@ top_k_frequent(nums: int[], k: int) -> int[]
 ## Tests
 
 ```json tests
-{"function":"top_k_frequent","kind":"func","compare":"exact","fuzz":15,"perf":{"sizes":[20000,100000,200000],"limit_ms":3000,"max_exponent":1.5},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"nums":[1,1,1,2,2,3],"k":2}},
-{"name":"example-2","tags":["visible"],"args":{"nums":[4,4,5,5,6],"k":2}},
-{"name":"edge-single","tags":["edge"],"args":{"nums":[9],"k":1}},
-{"name":"edge-all-equal-freq","tags":["edge"],"args":{"nums":[3,1,2],"k":3}},
-{"name":"hidden-negatives","tags":["hidden"],"args":{"nums":[-1,-1,2,2,2,0],"k":1}}
+{"function":"top_k_frequent","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"nums":[1,1,1,2,2,3],"k":2},"expected":[1,2]},
+{"name":"example-2","tags":["visible"],"args":{"nums":[4,4,5,5,6],"k":2},"expected":[4,5]},
+{"name":"edge-single","tags":["edge"],"args":{"nums":[9],"k":1},"expected":[9]},
+{"name":"edge-all-equal-freq","tags":["edge"],"args":{"nums":[3,1,2],"k":3},"expected":[1,2,3]},
+{"name":"hidden-negatives","tags":["hidden"],"args":{"nums":[-1,-1,2,2,2,0],"k":1},"expected":[2]},
+{"name":"random-1","tags":["hidden"],"args":{"nums":[0,-4,-3,-4,-4,0,4,1,-2,-3],"k":6},"expected":[-4,-3,0,-2,1,4]},
+{"name":"random-2","tags":["hidden"],"args":{"nums":[-3,-3,2,2,-3,4],"k":2},"expected":[-3,2]},
+{"name":"random-3","tags":["hidden"],"args":{"nums":[-1,-3,-4,1,-4,4,0],"k":6},"expected":[-4,-3,-1,0,1,4]},
+{"name":"random-4","tags":["hidden"],"args":{"nums":[-4,2,-2,2],"k":2},"expected":[2,-4]}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
+from collections import Counter
+
 def solve(nums, k):
     c = Counter(nums)
     return [v for v, _ in sorted(c.items(), key=lambda kv: (-kv[1], kv[0]))[:k]]
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    nums = [rnd.randint(-4, 4) for _ in range(rnd.randint(1, 12))]
-    return {"nums": nums, "k": rnd.randint(1, len(set(nums)))}
-
-def gen_perf(n):
-    rnd = random.Random(4)
-    return {"nums": [rnd.randint(-n, n) for _ in range(n)], "k": 10}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(n log k) with a heap, or O(n) with bucket sort
-- **Scaling check:** sizes [20000, 100000, 200000], limit 3000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.5
 - **Clarifying questions (answer verbatim):**
   - Q: Tie-breaking?  
     A: Lower value first.

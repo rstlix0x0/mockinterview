@@ -5,10 +5,8 @@ type: live-coding
 level: [senior, staff]
 tags: [graph, simulation, heap]
 time_minutes: 45
-languages: [python]
 entry: schedule_tasks
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: C4
@@ -43,14 +41,6 @@ Return `{"makespan": T, "starts": {id: start_time}}` where `T` is the time the l
 - **Example 2** - input: `{"tasks":[{"id":"x","duration":1,"deps":["y"]},{"id":"y","duration":1,"deps":["x"]}],"workers":1}`  
   output: `{"error":"cycle"}`
 
-## Stub
-
-```python
-def schedule_tasks(tasks, workers):
-    """schedule_tasks(tasks: {id: string, duration: int, deps: string[]}[], workers: int) -> object"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -60,22 +50,29 @@ schedule_tasks(tasks: record{id: string, duration: int, deps: string[]}[], worke
 ## Tests
 
 ```json tests
-{"function":"schedule_tasks","kind":"func","compare":"exact","fuzz":40,"perf":{"sizes":[5000,20000,50000],"limit_ms":5000,"max_exponent":1.5},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"tasks":[{"id":"a","duration":3,"deps":[]},{"id":"b","duration":2,"deps":["a"]},{"id":"c","duration":4,"deps":["a"]}],"workers":2}},
-{"name":"example-2","tags":["visible"],"args":{"tasks":[{"id":"x","duration":1,"deps":["y"]},{"id":"y","duration":1,"deps":["x"]}],"workers":1}},
-{"name":"edge-empty","tags":["edge"],"args":{"tasks":[],"workers":3}},
-{"name":"edge-unknown-dep","tags":["edge"],"args":{"tasks":[{"id":"a","duration":1,"deps":["zzz"]}],"workers":1}},
-{"name":"edge-self-dependency","tags":["edge"],"args":{"tasks":[{"id":"a","duration":1,"deps":["a"]}],"workers":1}},
-{"name":"hidden-unknown-beats-cycle","tags":["hidden"],"args":{"tasks":[{"id":"a","duration":1,"deps":["b"]},{"id":"b","duration":1,"deps":["a","q"]}],"workers":1}},
-{"name":"hidden-tie-by-id","tags":["hidden"],"args":{"tasks":[{"id":"b","duration":2,"deps":[]},{"id":"a","duration":2,"deps":[]},{"id":"c","duration":2,"deps":[]}],"workers":2}},
-{"name":"hidden-finish-before-assign","tags":["hidden"],"args":{"tasks":[{"id":"a","duration":2,"deps":[]},{"id":"b","duration":2,"deps":[]},{"id":"c","duration":1,"deps":["a","b"]}],"workers":2}},
-{"name":"hidden-duplicate-deps","tags":["hidden"],"args":{"tasks":[{"id":"a","duration":1,"deps":[]},{"id":"b","duration":1,"deps":["a","a"]}],"workers":1}}
+{"function":"schedule_tasks","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"tasks":[{"id":"a","duration":3,"deps":[]},{"id":"b","duration":2,"deps":["a"]},{"id":"c","duration":4,"deps":["a"]}],"workers":2},"expected":{"makespan":7,"starts":{"a":0,"b":3,"c":3}}},
+{"name":"example-2","tags":["visible"],"args":{"tasks":[{"id":"x","duration":1,"deps":["y"]},{"id":"y","duration":1,"deps":["x"]}],"workers":1},"expected":{"error":"cycle"}},
+{"name":"edge-empty","tags":["edge"],"args":{"tasks":[],"workers":3},"expected":{"makespan":0,"starts":{}}},
+{"name":"edge-unknown-dep","tags":["edge"],"args":{"tasks":[{"id":"a","duration":1,"deps":["zzz"]}],"workers":1},"expected":{"error":"unknown_dependency"}},
+{"name":"edge-self-dependency","tags":["edge"],"args":{"tasks":[{"id":"a","duration":1,"deps":["a"]}],"workers":1},"expected":{"error":"cycle"}},
+{"name":"hidden-unknown-beats-cycle","tags":["hidden"],"args":{"tasks":[{"id":"a","duration":1,"deps":["b"]},{"id":"b","duration":1,"deps":["a","q"]}],"workers":1},"expected":{"error":"unknown_dependency"}},
+{"name":"hidden-tie-by-id","tags":["hidden"],"args":{"tasks":[{"id":"b","duration":2,"deps":[]},{"id":"a","duration":2,"deps":[]},{"id":"c","duration":2,"deps":[]}],"workers":2},"expected":{"makespan":4,"starts":{"a":0,"b":0,"c":2}}},
+{"name":"hidden-finish-before-assign","tags":["hidden"],"args":{"tasks":[{"id":"a","duration":2,"deps":[]},{"id":"b","duration":2,"deps":[]},{"id":"c","duration":1,"deps":["a","b"]}],"workers":2},"expected":{"makespan":3,"starts":{"a":0,"b":0,"c":2}}},
+{"name":"hidden-duplicate-deps","tags":["hidden"],"args":{"tasks":[{"id":"a","duration":1,"deps":[]},{"id":"b","duration":1,"deps":["a","a"]}],"workers":1},"expected":{"makespan":2,"starts":{"a":0,"b":1}}},
+{"name":"random-1","tags":["hidden"],"args":{"tasks":[{"id":"t2","duration":1,"deps":[]},{"id":"t1","duration":1,"deps":[]},{"id":"t0","duration":1,"deps":[]},{"id":"t3","duration":1,"deps":["t0"]}],"workers":1},"expected":{"makespan":4,"starts":{"t0":0,"t1":1,"t2":2,"t3":3}}},
+{"name":"random-2","tags":["hidden"],"args":{"tasks":[{"id":"t0","duration":1,"deps":[]},{"id":"t4","duration":3,"deps":["t1"]},{"id":"t1","duration":1,"deps":[]},{"id":"t2","duration":1,"deps":[]},{"id":"t3","duration":1,"deps":["t1"]}],"workers":2},"expected":{"makespan":5,"starts":{"t0":0,"t1":0,"t2":1,"t3":1,"t4":2}}},
+{"name":"random-3","tags":["hidden"],"args":{"tasks":[{"id":"t3","duration":3,"deps":[]},{"id":"t5","duration":2,"deps":["t2"]},{"id":"t1","duration":1,"deps":["t0"]},{"id":"t2","duration":5,"deps":[]},{"id":"t4","duration":4,"deps":["t1"]},{"id":"t0","duration":2,"deps":[]}],"workers":2},"expected":{"makespan":9,"starts":{"t0":0,"t2":0,"t1":2,"t3":3,"t4":5,"t5":6}}},
+{"name":"random-4","tags":["hidden"],"args":{"tasks":[{"id":"t2","duration":3,"deps":[]},{"id":"t0","duration":1,"deps":[]},{"id":"t1","duration":4,"deps":[]}],"workers":1},"expected":{"makespan":8,"starts":{"t0":0,"t1":1,"t2":5}}}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
+import heapq
+from collections import defaultdict
+
 def solve(tasks, workers):
     byid = {t["id"]: t for t in tasks}
     for t in tasks:
@@ -109,37 +106,11 @@ def solve(tasks, workers):
                 if indeg[c] == 0:
                     heapq.heappush(ready, c)
     return {"makespan": now, "starts": starts}
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    n = rnd.randint(0, 7)
-    ids = ["t%d" % i for i in range(n)]
-    tasks = []
-    for i, tid in enumerate(ids):
-        deps = [d for d in ids[:i] if rnd.random() < 0.3]
-        tasks.append({"id": tid, "duration": rnd.randint(1, 5), "deps": deps})
-    r = rnd.random()
-    if tasks and r < 0.12:
-        tasks[0]["deps"].append("ghost")
-    elif tasks and r < 0.25:
-        tasks[0]["deps"].append(ids[-1])
-    rnd.shuffle(tasks)
-    return {"tasks": tasks, "workers": rnd.randint(1, 3)}
-
-def gen_perf(n):
-    rnd = random.Random(104)
-    tasks = []
-    for i in range(n):
-        deps = ["t%06d" % rnd.randrange(max(0, i - 50), i) for _ in range(2)] if i else []
-        tasks.append({"id": "t%06d" % i, "duration": rnd.randint(1, 20), "deps": deps})
-    rnd.shuffle(tasks)
-    return {"tasks": tasks, "workers": 8}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O((V + E) log V)
-- **Scaling check:** sizes [5000, 20000, 50000], limit 5000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.5
 - **Clarifying questions (answer verbatim):**
   - Q: Is the id comparison numeric?  
     A: No, plain string comparison.

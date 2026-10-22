@@ -5,10 +5,8 @@ type: live-coding
 level: [junior, mid]
 tags: [binary-search]
 time_minutes: 25
-languages: [python]
 entry: search_rotated
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: B10
@@ -35,14 +33,6 @@ A strictly increasing array of distinct integers was rotated at an unknown pivot
 - **Example 3** - input: `{"nums":[1],"target":0}`  
   output: `-1`
 
-## Stub
-
-```python
-def search_rotated(nums, target):
-    """search_rotated(nums: int[], target: int) -> int"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -52,21 +42,25 @@ search_rotated(nums: int[], target: int) -> int
 ## Tests
 
 ```json tests
-{"function":"search_rotated","kind":"func","compare":"exact","fuzz":25,"cases":[
-{"name":"example-1","tags":["visible"],"args":{"nums":[4,5,6,7,0,1,2],"target":0}},
-{"name":"example-2","tags":["visible"],"args":{"nums":[4,5,6,7,0,1,2],"target":3}},
-{"name":"example-3","tags":["visible"],"args":{"nums":[1],"target":0}},
-{"name":"edge-single-hit","tags":["edge"],"args":{"nums":[1],"target":1}},
-{"name":"edge-not-rotated","tags":["edge"],"args":{"nums":[1,2,3,4],"target":4}},
-{"name":"edge-two-elements","tags":["edge"],"args":{"nums":[3,1],"target":1}},
-{"name":"hidden-target-at-pivot","tags":["hidden"],"args":{"nums":[5,6,7,1,2,3,4],"target":1}},
-{"name":"hidden-first-and-last","tags":["hidden"],"args":{"nums":[6,7,8,1,2,3],"target":3}}
+{"function":"search_rotated","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"nums":[4,5,6,7,0,1,2],"target":0},"expected":4},
+{"name":"example-2","tags":["visible"],"args":{"nums":[4,5,6,7,0,1,2],"target":3},"expected":-1},
+{"name":"example-3","tags":["visible"],"args":{"nums":[1],"target":0},"expected":-1},
+{"name":"edge-single-hit","tags":["edge"],"args":{"nums":[1],"target":1},"expected":0},
+{"name":"edge-not-rotated","tags":["edge"],"args":{"nums":[1,2,3,4],"target":4},"expected":3},
+{"name":"edge-two-elements","tags":["edge"],"args":{"nums":[3,1],"target":1},"expected":1},
+{"name":"hidden-target-at-pivot","tags":["hidden"],"args":{"nums":[5,6,7,1,2,3,4],"target":1},"expected":3},
+{"name":"hidden-first-and-last","tags":["hidden"],"args":{"nums":[6,7,8,1,2,3],"target":3},"expected":5},
+{"name":"random-1","tags":["hidden"],"args":{"nums":[-19,-18,-13,-9,-4,-1,0,10,12,-20],"target":16},"expected":-1},
+{"name":"random-2","tags":["hidden"],"args":{"nums":[-13,-3,6,17,19,-16],"target":-16},"expected":5},
+{"name":"random-3","tags":["hidden"],"args":{"nums":[0,12,-20,-18,-14,-6,-3],"target":-5},"expected":-1},
+{"name":"random-4","tags":["hidden"],"args":{"nums":[5,6,-20,-10],"target":8},"expected":-1}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 def solve(nums, target):
     lo, hi = 0, len(nums) - 1
     while lo <= hi:
@@ -84,12 +78,6 @@ def solve(nums, target):
             else:
                 hi = mid - 1
     return -1
-
-def gen_random(seed):
-    rnd = random.Random(seed)
-    base = sorted(rnd.sample(range(-20, 20), rnd.randint(1, 10)))
-    r = rnd.randrange(len(base))
-    return {"nums": base[r:] + base[:r], "target": rnd.randint(-20, 20)}
 ```
 
 ## Interviewer notes

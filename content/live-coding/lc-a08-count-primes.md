@@ -5,10 +5,8 @@ type: live-coding
 level: [junior]
 tags: [math, sieve]
 time_minutes: 10
-languages: [python]
 entry: count_primes
 kind: func
-runs_code: true
 source: adapted
 author: mockinterview
 legacy_id: A8
@@ -34,14 +32,6 @@ Return the number of prime numbers strictly less than `n`.
 - **Example 3** - input: `{"n":2}`  
   output: `0`
 
-## Stub
-
-```python
-def count_primes(n):
-    """count_primes(n: int) -> int"""
-    raise NotImplementedError
-```
-
 ## Signature
 
 ```signature
@@ -51,20 +41,24 @@ count_primes(n: int) -> int
 ## Tests
 
 ```json tests
-{"function":"count_primes","kind":"func","compare":"exact","fuzz":10,"perf":{"sizes":[500000,2000000,5000000],"limit_ms":4000,"max_exponent":1.5},"cases":[
-{"name":"example-1","tags":["visible"],"args":{"n":10}},
-{"name":"example-2","tags":["visible"],"args":{"n":0}},
-{"name":"example-3","tags":["visible"],"args":{"n":2}},
-{"name":"edge-n-1","tags":["edge"],"args":{"n":1}},
-{"name":"edge-n-3","tags":["edge"],"args":{"n":3}},
-{"name":"hidden-100","tags":["hidden"],"args":{"n":100}},
-{"name":"hidden-10000","tags":["hidden"],"args":{"n":10000}}
+{"function":"count_primes","kind":"func","compare":"exact","cases":[
+{"name":"example-1","tags":["visible"],"args":{"n":10},"expected":4},
+{"name":"example-2","tags":["visible"],"args":{"n":0},"expected":0},
+{"name":"example-3","tags":["visible"],"args":{"n":2},"expected":0},
+{"name":"edge-n-1","tags":["edge"],"args":{"n":1},"expected":0},
+{"name":"edge-n-3","tags":["edge"],"args":{"n":3},"expected":1},
+{"name":"hidden-100","tags":["hidden"],"args":{"n":100},"expected":25},
+{"name":"hidden-10000","tags":["hidden"],"args":{"n":10000},"expected":1229},
+{"name":"random-1","tags":["hidden"],"args":{"n":295},"expected":62},
+{"name":"random-2","tags":["hidden"],"args":{"n":182},"expected":42},
+{"name":"random-3","tags":["hidden"],"args":{"n":199},"expected":45},
+{"name":"random-4","tags":["hidden"],"args":{"n":103},"expected":26}
 ]}
 ```
 
-## Oracle
+## Reference solution
 
-```python oracle
+```python reference
 def solve(n):
     if n < 3:
         return 0
@@ -74,18 +68,11 @@ def solve(n):
         if sieve[i]:
             sieve[i * i::i] = bytearray(len(range(i * i, n, i)))
     return sum(sieve)
-
-def gen_random(seed):
-    return {"n": random.Random(seed).randint(0, 300)}
-
-def gen_perf(n):
-    return {"n": n}
 ```
 
 ## Interviewer notes
 
 - **Target complexity:** O(n log log n) time, O(n) space
-- **Scaling check:** sizes [500000, 2000000, 5000000], limit 4000 ms (calibrated to a straightforward Python solution), growth exponent at most 1.5
 - **Clarifying questions (answer verbatim):**
   - Q: Upper bound?  
     A: 5 million.
