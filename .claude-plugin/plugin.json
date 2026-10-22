@@ -1,7 +1,7 @@
 {
   "name": "mockinterview",
   "displayName": "Mock Interview",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Practice software-engineering interviews inside Claude Code: timed live-coding and system-design rounds run by an Interviewer persona, a Teacher for explanations, your own problems as Markdown packs, and scorecards with history.",
   "author": {
     "name": "Hiraq",
