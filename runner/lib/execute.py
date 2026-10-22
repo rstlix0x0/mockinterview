@@ -31,6 +31,10 @@ except ImportError:  # pragma: no cover
     resource = None
 
 CASE_TIMEOUT = 10.0
+BUILD_TIMEOUT = 600
+BUILD_OUTPUT_LINES = 60
+SKIP_DIRS = {"archive", "target", "node_modules", ".git", ".gocache"}
+SKIP_FILES = {"PROBLEM.md", "design.md", "estimate.json"}
 MEMORY_BYTES = 2 * 1024 ** 3
 SHOW_LIMIT = 3
 
@@ -110,7 +114,7 @@ def run_case(ctx, lang, solution, req, timeout):
     kwargs = {}
     if os.name == "posix" and getattr(ctx, "limits", True):
         kwargs["preexec_fn"] = _limits(timeout)
-    work = os.path.dirname(solution)
+    work = lang.work_of(solution)
     with tempfile.TemporaryDirectory(prefix="mi-case-") as tmp:
         result = os.path.join(tmp, "result.json")
         argv = lang.argv(lang.run_argv, solution=solution, result=result, work=work)
@@ -134,6 +138,87 @@ def run_case(ctx, lang, solution, req, timeout):
         return True, json.loads(text), "", dt
     except ValueError:
         return False, None, "the result is not valid JSON: %r" % text[:200], dt
+
+
+def write_glue(lang, pack, work):
+    """Write the runner-owned glue files (typed languages). Returns their paths."""
+    written = []
+    for rel, content in lang.glue_files(pack).items():
+        path = os.path.join(work, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        old = None
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as fh:
+                old = fh.read()
+        if old != content:  # leave the file alone when unchanged, so build tools see no edit
+            atomic_write(path, content)
+        written.append(path)
+    return written
+
+
+def write_scaffold(lang, work):
+    """Write the language's project files (go.mod, Cargo.toml) that are not there yet. Returns the new paths."""
+    written = []
+    for rel, content in lang.scaffold.items():
+        path = os.path.join(work, rel)
+        if not os.path.exists(path):
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            atomic_write(path, content)
+            written.append(path)
+    return written
+
+
+def _source_hash(lang, work):
+    h = hashlib.sha256(json.dumps([lang.id, lang.build_argv, lang.bin]).encode("utf-8"))
+    for base, dirs, files in os.walk(work):
+        dirs[:] = sorted(d for d in dirs if d not in SKIP_DIRS)
+        for fn in sorted(files):
+            if base == work and fn in SKIP_FILES:
+                continue
+            path = os.path.join(base, fn)
+            h.update(os.path.relpath(path, work).encode("utf-8") + b"\0")
+            with open(path, "rb") as fh:
+                h.update(hashlib.sha256(fh.read()).digest())
+    return h.hexdigest()
+
+
+def prepare(ctx, lang, pack, solution):
+    """Before running cases: rewrite the glue and build, unless the sources are unchanged since the last build.
+
+    Returns {"built": bool, "seconds": float} or None for a language without a build. A failed build raises
+    MiError code build_failed with the compiler's output (paths shown relative to work/)."""
+    if not lang.build_argv:
+        return None
+    work = lang.work_of(solution)
+    write_scaffold(lang, work)
+    write_glue(lang, pack, work)
+    build_dir = lang.build_dir(work)
+    os.makedirs(build_dir, exist_ok=True)
+    stamp_path = os.path.join(build_dir, "stamp")
+    digest = _source_hash(lang, work)
+    binary = lang.argv(["{bin}"], solution=solution, work=work)[0]
+    try:
+        with open(stamp_path, encoding="utf-8") as fh:
+            if fh.read().strip() == digest and os.path.exists(binary):
+                return {"built": False, "seconds": 0.0}
+    except OSError:
+        pass
+    argv = lang.argv(lang.build_argv, solution=solution, work=work)
+    t0 = time.perf_counter()
+    try:
+        p = subprocess.run(argv, capture_output=True, text=True, timeout=BUILD_TIMEOUT, env=lang.environment(),
+                           cwd=work)
+    except subprocess.TimeoutExpired:
+        raise MiError("the build took longer than %d s" % BUILD_TIMEOUT, code="build_failed", output="")
+    except OSError as exc:
+        raise MiError("cannot start %s: %s" % (argv[0], exc), code="toolchain_missing", language=lang.id)
+    if p.returncode != 0 or not os.path.exists(binary):
+        text = (p.stdout + "\n" + p.stderr).replace(work + os.sep, "").strip()
+        lines = text.splitlines()[-BUILD_OUTPUT_LINES:]
+        raise MiError("the build failed (exit code %d); fix the compile errors and run again" % p.returncode,
+                      code="build_failed", output="\n".join(lines))
+    atomic_write(stamp_path, digest)
+    return {"built": True, "seconds": round(time.perf_counter() - t0, 2)}
 
 
 def run_suite(ctx, pack, lang, solution, mode="all", perf=False, fuzz=None, seed=10000, factor=1.0,

@@ -4,7 +4,7 @@ import json
 import os
 import re
 
-from . import signature as sigmod
+from . import glue, signature as sigmod
 from .util import MiError, atomic_write, read_json
 
 LEVELS = ["junior", "mid", "senior", "staff"]
@@ -387,6 +387,11 @@ def _lint_signature(pack, stub, err, warn):
     if sig is None:
         err("## Signature needs one fenced 'signature' block")
         return
+    for name in glue.GENERATORS:
+        try:
+            glue.get(name).check(sig)
+        except glue.Unsupported as exc:
+            warn("signature: not offered in %s: %s" % (name.capitalize(), exc))
     entry, kind = pack.meta.get("entry"), pack.meta.get("kind")
     if sig.name != entry:
         err("signature: %s must be the entry %s" % (sig.name, entry))

@@ -10,21 +10,23 @@ import subprocess
 import sys
 import tomllib
 
-from . import packs
+from . import glue, packs
+from .signature import SignatureError
 from .util import MiError
 
 DEFAULT = "python"
 DETECT_TIMEOUT = 15
 REQUIRED = ("id", "name", "solution")
 KNOWN = set(REQUIRED) | {"detect", "run", "shim", "pack_stub", "stub_func", "stub_ops", "stub_method", "naming",
-                         "call", "time_factor", "env_pass", "env", "runtimes", "deps_check"}
-PLANNED = {"build", "glue", "scaffold", "batch"}  # compiled languages, not built yet
-ARGV_VARS = {"python", "shim", "solution", "work", "result"}
+                         "call", "time_factor", "env_pass", "env", "runtimes", "deps_check", "glue", "build", "bin",
+                         "scaffold"}
+PLANNED = {"batch"}  # not built yet
+ARGV_VARS = {"python", "shim", "solution", "work", "result", "build", "bin"}
 STUB_VARS = {"entry", "params", "methods"}
 METHOD_VARS = {"name", "params"}
 NAMINGS = ("snake", "camel")
 CALLS = ("named", "positional")
-DEPS_CHECKS = {"python", "npm"}
+DEPS_CHECKS = {"python", "npm", "go", "cargo"}
 BASE_ENV = ("PATH", "HOME", "LANG", "LC_ALL", "SYSTEMROOT", "TMPDIR")
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 VAR_RE = re.compile(r"\{([A-Za-z_]+)\}")
@@ -74,10 +76,28 @@ def validate(data):
             errors.append("%s must be a non-empty list of strings" % key)
         else:
             _check_vars(key, data[key], ARGV_VARS, errors)
-    if not data.get("pack_stub"):
+    if "glue" in data and data["glue"] not in glue.GENERATORS:
+        errors.append("glue must be one of: %s" % ", ".join(glue.GENERATORS))
+    if "build" in data:
+        if not _str_list(data["build"]):
+            errors.append("build must be a non-empty list of strings")
+        else:
+            _check_vars("build", data["build"], ARGV_VARS - {"result", "solution", "shim"}, errors)
+    if "bin" in data:
+        if not isinstance(data["bin"], str) or not data["bin"]:
+            errors.append("bin must be a path")
+        else:
+            _check_vars("bin", [data["bin"]], {"build", "work"}, errors)
+    if "scaffold" in data:
+        sc = data["scaffold"]
+        if not (isinstance(sc, dict) and all(isinstance(v, str) for v in sc.values())):
+            errors.append("scaffold must be a table of file name = content")
+        elif any(os.path.isabs(k) or ".." in k.replace("\\", "/").split("/") for k in sc):
+            errors.append("scaffold files must be paths inside work/")
+    if not data.get("pack_stub") and "glue" not in data:
         for key in ("stub_func", "stub_ops"):
             if not isinstance(data.get(key), str):
-                errors.append("%s is required unless pack_stub = true" % key)
+                errors.append("%s is required unless pack_stub = true or glue is set" % key)
             else:
                 _check_vars(key, [data[key]], STUB_VARS, errors)
     if "stub_method" in data:
@@ -133,6 +153,12 @@ class Language:
         self.deps_check = data.get("deps_check")
         self.naming = data.get("naming", "snake")
         self.call = data.get("call", "named")
+        self.glue = data.get("glue")                               # generator name for typed languages
+        self.build_argv = data.get("build")
+        self.bin = data.get("bin", "{build}/solution")
+        self.scaffold = data.get("scaffold") or {}
+        if self.glue:
+            self.call = "positional"                               # the glue reads arguments by position
         self.runtimes = data.get("runtimes") or []
         self.runtime = None                                        # chosen runtime id, set by select()
         self.run_argv = list(data.get("run") or self.runtimes[0]["run"])  # the chosen runtime's run command
@@ -141,9 +167,24 @@ class Language:
         return {"id": self.id, "name": self.name, "solution": self.solution, "root": self.root_label,
                 "path": self.path}
 
+    def work_of(self, solution):
+        """The work folder of a solution path (src/solution.rs lives one level down)."""
+        depth = len([p for p in self.solution.replace("\\", "/").split("/") if p]) - 1
+        work = os.path.dirname(solution)
+        for _ in range(depth):
+            work = os.path.dirname(work)
+        return work
+
+    def build_dir(self, work):
+        """Where builds go: .mockinterview/build/<id>/, beside work/."""
+        return os.path.join(os.path.dirname(work), "build", self.id)
+
     def _vars(self, solution="", result="", work=""):
-        return {"python": sys.executable, "shim": self.shim or "", "solution": solution, "result": result,
-                "work": work}
+        build = self.build_dir(work) if work else ""
+        values = {"python": sys.executable, "shim": self.shim or "", "solution": solution, "result": result,
+                  "work": work, "build": build}
+        values["bin"] = VAR_RE.sub(lambda m: values[m.group(1)], self.bin) if work else ""
+        return values
 
     def argv(self, template, solution="", result="", work=""):
         values = self._vars(solution, result, work)
@@ -228,6 +269,42 @@ class Language:
                           % (sorted(args), params), code="bad_pack")
         return {"function": self.ident(suite["function"]), "args": [args[p] for p in params]}
 
+    def generator(self, pack):
+        """(glue generator, parsed signature) for a typed language; raises MiError when the pack cannot be offered."""
+        try:
+            sig = pack.signature()
+        except SignatureError as exc:
+            sig, why = None, "its signature does not parse: %s" % exc
+        else:
+            why = "it has no ## Signature"
+        if sig is None:
+            raise MiError("%s is not available in %s: %s" % (pack.id, self.name, why), code="language_unsupported",
+                          language=self.id)
+        gen = glue.get(self.glue)
+        try:
+            gen.check(sig)
+        except glue.Unsupported as exc:
+            raise MiError("%s is not available in %s: %s" % (pack.id, self.name, exc), code="language_unsupported",
+                          language=self.id)
+        return gen, sig
+
+    def supports(self, pack):
+        """True when this language can run the pack (always, unless the language needs glue)."""
+        if not self.glue:
+            return True
+        try:
+            self.generator(pack)
+        except MiError:
+            return False
+        return True
+
+    def glue_files(self, pack):
+        """{path in work/: content} of the runner-owned glue, rewritten before every build."""
+        if not self.glue:
+            return {}
+        gen, sig = self.generator(pack)
+        return gen.files(sig, pack.meta.get("kind"), pack.id, self.ident)
+
     def params(self, pack):
         """Parameter names of the pack's entry function, in the order of its Python stub."""
         return packs.stub_signatures(pack.stub() or "", pack.suite()["function"])[0] or []
@@ -237,6 +314,9 @@ class Language:
         source = pack.stub() or ""
         if self.pack_stub:
             return source
+        if self.glue:
+            gen, sig = self.generator(pack)
+            return gen.stub(sig, pack.meta.get("kind"))
         suite = pack.suite()
         params, methods = packs.stub_signatures(source, suite["function"])
         params = params or []

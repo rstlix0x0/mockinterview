@@ -1,6 +1,6 @@
 # Solution languages
 
-> **Status: P1 (foundation), P2 (JavaScript) and P3 (signatures) are implemented; Go and Rust are planned.** Language files, `langs`, `--lang`, the session fields, the result file and the dependency checks exist today, with Python and JavaScript built in. Fields and placeholders marked *planned* are refused by the loader until their phase lands.
+> **Status: all four phases are implemented** (foundation, JavaScript, signatures, Go and Rust). Python, JavaScript, Go and Rust are built in. Only `batch` is still *planned*; the loader refuses it.
 
 Other languages are for the **candidate's solution only**. The plugin itself (runner, oracles, expected values, scoring, tools) stays Python, standard library only. The one non-Python piece per language is a small **shim** that loads the solution and calls it inside the test subprocess.
 
@@ -11,7 +11,8 @@ Other languages are for the **candidate's solution only**. The plugin itself (ru
 └───────────────┬─────────────────────────────────────┘
                 │ subprocess per test case, JSON request on stdin
 ┌───────────────▼─── candidate side: chosen language ─┐
-│ shim / generated glue ──calls──▶ the solution       │
+│ shim (Python, JS) or generated glue (Go, Rust)      │
+│        ──calls──▶ the solution                      │
 │ writes the JSON result to {result}                  │
 └─────────────────────────────────────────────────────┘
 ```
@@ -35,10 +36,10 @@ Pack authors keep writing oracles in Python, so one pack serves every language.
 |---|---|---|---|
 | Python | the runner's own interpreter | none | 3.11 |
 | JavaScript | `bun`, else `node` (first found; `--runtime` to choose) | none | Node 18, Bun 1.0 |
-| Go | `go` | `go build` in `work/`, `GOPROXY=off` | 1.21 |
+| Go | `go` | `go build` in `work/`, `GOPROXY=off`, `GOTOOLCHAIN=local` | 1.21 |
 | Rust | `cargo` | `cargo build --release --offline` | 1.70 |
 
-Compiled languages build once per `run`, cached by a hash of the sources in `.mockinterview/build/`, not once per case.
+Compiled languages build once per `run`, not once per case, into `.mockinterview/build/<id>/`. A stamp there holds a hash of the files in `work/` (without `archive/`, `target/`, `node_modules/` and the round's Markdown and JSON files) and the build command; while it matches and the program exists, the build is skipped. A failed build answers `{"ok": false, "code": "build_failed", "output": "<last 60 lines>"}` and runs nothing.
 
 ## Language files
 
@@ -47,6 +48,7 @@ Discovered from the same roots as packs, under `languages/`. A later root wins o
 ```
 <plugin>/languages/python.toml           built-in, trusted
 <plugin>/languages/javascript.toml       built-in, trusted
+<plugin>/languages/go.toml, rust.toml    built-in, trusted
 <plugin>/languages/shims/                py_shim.py, js_shim.mjs: shims sit beside the language files
 ~/.mockinterview/languages/*.toml         user     ┐ need `mi.py trust <folder>`
 <project>/.mockinterview/languages/       project  ┘
@@ -62,7 +64,7 @@ A file that does not load (bad TOML, a missing or unknown field, an unknown plac
 | `run` | unless `runtimes` | `["{python}", "{shim}", "{solution}", "{result}"]` | Runs one test case |
 | `shim` | no | `"shims/js_shim.js"` | Fixed adapter (dynamic languages), relative to the language file |
 | `pack_stub` | no | `true` | Write the pack's `## Stub` (Python) as it is; only for Python-compatible languages |
-| `stub_func`, `stub_ops` | unless `pack_stub` | `"def {entry}({params}):\n    pass\n"` | Stubs for function and class problems |
+| `stub_func`, `stub_ops` | unless `pack_stub` or `glue` | `"def {entry}({params}):\n    pass\n"` | Stubs for function and class problems |
 | `stub_method` | if `stub_ops` has `{methods}` | `"\n  {name}({params}) {\n  }\n"` | One method of a class stub, repeated for each method of the pack's stub |
 | `naming` | no | `"camel"` | `two_sum` → `twoSum` for functions, methods and parameters; class names stay (`snake`, the default, keeps every name) |
 | `call` | no | `"positional"` | How a function gets its arguments: `named` (the default; by the stub's parameter names) or `positional` (in the stub's order) |
@@ -70,12 +72,13 @@ A file that does not load (bad TOML, a missing or unknown field, an unknown plac
 | `env_pass` | no | `["GOPATH", "GOMODCACHE"]` | Extra environment variables passed through |
 | `env` | no | `{ GOPROXY = "off" }` | Variables set for build and run |
 | `runtimes` | no | `[{ id = "bun", detect = [...], run = [...] }, ...]` | Alternatives, first found wins; each replaces `detect` and `run` |
-| `deps_check` | no | `"npm"` | Which check interview mode runs: `python` or `npm` today, `go` and `cargo` planned |
-| `build` | *planned* (P4) | `["go", "build", "-o", "{bin}", "."]` | Runs once per `run` |
-| `glue` | *planned* (P4) | `"glue/go"` | Template for generated glue (typed languages) |
-| `scaffold` | *planned* (P4) | `{ "go.mod" = "module solution\n\ngo 1.21\n" }` | Extra files written on `begin` if absent |
+| `deps_check` | no | `"npm"` | Which check interview mode runs: `python`, `npm`, `go` or `cargo` |
+| `glue` | no | `"go"` | Generator for typed languages, `go` or `rust`: it writes the stub and the glue from the pack's `## Signature`, and the language reads arguments by position |
+| `build` | no | `["go", "build", "-o", "{bin}", "."]` | Runs in `work/` once per `run`, when the sources changed |
+| `bin` | no | `"{build}/release/mi_solution"` | Where the build puts the program; default `{build}/solution` |
+| `scaffold` | no | `{ "go.mod" = "module solution\n\ngo 1.21\n" }` | Project files written into `work/` on `begin` (and before a build) when absent |
 
-Placeholders in `detect` and `run`: `{python}` (the runner's interpreter), `{shim}`, `{solution}`, `{work}`, `{result}`; *planned*: `{build}`, `{bin}`. In `stub_func` and `stub_ops`: `{entry}` (the pack's function or class), `{params}` (the parameter names of the pack's Python stub; for a class, its constructor's) and `{methods}` (the class's methods, each rendered with `stub_method`, whose placeholders are `{name}` and `{params}`). Names are spelled per `naming`. Other text in braces, such as a code block `{ }`, is left alone.
+Placeholders in `detect`, `run` and `build`: `{python}` (the runner's interpreter), `{shim}`, `{solution}`, `{work}`, `{result}`, `{build}` (`.mockinterview/build/<id>/`), `{bin}` (the `bin` path); `build` takes no `{result}`, `{solution}` or `{shim}`. In `stub_func` and `stub_ops`: `{entry}` (the pack's function or class), `{params}` (the parameter names of the pack's Python stub; for a class, its constructor's) and `{methods}` (the class's methods, each rendered with `stub_method`, whose placeholders are `{name}` and `{params}`). Names are spelled per `naming`. Other text in braces, such as a code block `{ }`, is left alone.
 
 Python becomes an ordinary language file:
 
@@ -127,6 +130,31 @@ run    = ["node", "{shim}", "{solution}", "{result}"]
 | Output | `console.log` is harmless: the value goes to the result file |
 | Bun | Runs with `--no-install`, so a missing package fails instead of being downloaded (decision D) |
 
+## Go and Rust
+
+Both are built in with `glue`: the runner writes a typed stub on `begin` and, before every build, a small program around the solution that reads the request, converts the JSON arguments to the signature's types, calls the solution and writes the result. The glue is generated from the pack's `## Signature`, so a pack without one (or with a type the language cannot express) is not offered: `pick` answers `language_unsupported` and `draw` leaves it out. Every built-in pack works in both.
+
+| Signature | Go | Rust |
+|---|---|---|
+| `int`, `float`, `bool`, `string` | `int`, `float64`, `bool`, `string` | `i64`, `f64`, `bool`, `String` |
+| `T[]` | `[]T`; nil is written as `[]` | `Vec<T>` |
+| `T?` | `*T`; a slice, map or union stays itself and nil is `null` | `Option<T>` |
+| `[A, B]` | struct `TupleAB` with fields `V0`, `V1` (`TupleStringInt`) | `(A, B)`, up to four items |
+| `{string: T}` | `map[string]T`; nil is written as `{}` | `HashMap<String, T>` |
+| `record{a: T, b?: U}` | struct named from its place (`Task`, `RouteResult`); an optional field is a pointer, or nil for a slice or map | struct with `pub` fields; an optional field is an `Option`, `None` when absent |
+| `A \| B` | `any`, members int, float, bool or string only | enum named from its members (`IntOrString` with `Int(i64)`, `Str(String)`) |
+| `void` | no result | `()` |
+
+| | Go | Rust |
+|---|---|---|
+| Names | functions camelCase (`twoSum`), parameters camelCase; class `MinStack` with `NewMinStack(...)` and exported methods (`GetMin`) | the pack's names: `two_sum`, `MinStack::new(...)`, `get_min(&mut self)` |
+| Stub body | `panic("not implemented")` | `todo!()` |
+| Runner-owned files | `mi_main.go` (glue and the named types) | `src/main.rs`, `src/mi_json.rs` (a small JSON reader and writer), `src/mi_types.rs` (named types) |
+| Errors | a panic is reported as `panic: <value> at solution.go:<line>` | the panic message with `src/solution.rs:<line>` |
+| Notes | `GOPROXY=off`, `GOTOOLCHAIN=local`, `CGO_ENABLED=0` | release build, offline; the solution runs on a thread with a 256 MB stack, so deep recursion works |
+
+A Go nil slice or map means `null` or an absent field where the signature allows it, otherwise empty: return `map[string]string{}`, not nil, when an empty object is expected.
+
 ## Lifecycle
 
 ```
@@ -149,8 +177,10 @@ run ─▶ interview mode? dependency check ──✗──▶ {"ok": false, "co
 Python   solution.py
 JS       solution.js  [package.json, node_modules/]        engineer runs npm/bun install
 Go       go.mod · solution.go · mi_main.go                  engineer runs go get
-Rust     Cargo.toml · src/solution.rs · src/main.rs         engineer runs cargo add
-                                     └─ runner-owned glue, rewritten on every run
+Rust     Cargo.toml · src/solution.rs · src/main.rs · src/mi_json.rs · src/mi_types.rs
+                                                            engineer runs cargo add
+         mi_main.go and src/main.rs, src/mi_*.rs: runner-owned glue, rewritten on every run
+Build    .mockinterview/build/<id>/   (program, cargo target dir, stamp)
 ```
 
 The Rust glue carries its own small JSON parser, so a project without dependencies builds offline on the first try. Go uses `encoding/json`.
@@ -163,8 +193,8 @@ A cheap check before `run`, friction in the same spirit as the mod's guard, not 
 |---|---|
 | Python | every import of the solution is in `sys.stdlib_module_names` |
 | JavaScript | `work/package.json` lists no packages (`dependencies`, `devDependencies`, `optionalDependencies`, `peerDependencies`); every `require`/`import` is a Node builtin (`fs`, `node:fs`, `fs/promises`), a `bun:` module or a local file (`./helper.js`) |
-| Go | `go.mod` has no `require` |
-| Rust | `Cargo.toml` `[dependencies]` is empty |
+| Go | `go.mod` has no `require` (single line or block) |
+| Rust | `Cargo.toml` has no `[dependencies]`, `[dev-dependencies]` or `[build-dependencies]`, `[target.*]` ones included |
 
 On failure: `{"ok": false, "code": "dependencies_not_allowed", "error": "interview rounds use the standard library only: found 'lru'"}`.
 
@@ -177,14 +207,7 @@ int (64-bit) · float · bool · string · T[] · T? (nullable) · [A, B] (tuple
 record{a: T, b?: U} (b may be absent) · A | B (union) · void (method returns only)
 ```
 
-| Type | Go | Rust | JavaScript |
-|---|---|---|---|
-| `int` | `int` | `i64` | `number` (exact to 2^53) |
-| `string` | `string` | `String` | `string` |
-| `T[]` | `[]T` (a nil slice is written as `[]`) | `Vec<T>` | `Array` |
-| `T?` | `*T` | `Option<T>` | `T \| null` |
-| `[A, B]` | generated struct, encoded as an array | `(A, B)` | `Array` |
-| `{string: T}` | `map[string]T` | `HashMap<String, T>` | `Object` |
+The Go and Rust types are in [Go and Rust](#go-and-rust). JavaScript needs no types: numbers are exact to 2^53, a tuple is an `Array`, a map or record an `Object`.
 
 The signatures were converted from the stub docstrings by script and the loose ones written by hand. Fixed lengths such as `int[2]` became plain lists. Two packs need a union, `lc-c06` (`int | string`) and `lc-c09` (`{string: int | string}`); `lc-c04` and `lc-c08` return records with optional keys. A pack whose signature does not map to a language is offered in Python and JavaScript only; `draw --lang go` skips it. A pack without a signature (an older user pack) gets a lint warning and is treated the same way.
 
@@ -203,6 +226,6 @@ The signatures were converted from the stub docstrings by script and the loose o
 | P1 Foundation (**done**) | Python 3.11 floor, TOML loader, `langs`, `--lang`, session fields, result file (B), `python.toml` with no behaviour change, dependency check for Python; skills, scorer, mod and docs follow the session's solution file |
 | P2 JavaScript (**done**) | One shim for Bun and Node, camelCase stubs, `package.json` dependency check. All live-coding packs work: no types needed |
 | P3 Signatures (**done**) | `## Signature` in every live-coding pack (converted from the docstrings by script, the loose ones by hand); lint and selftest checks; authoring.md updated |
-| P4 Go and Rust | Type mapping, generated glue, scaffold, cached builds, manifest checks, the language filter in `draw` |
+| P4 Go and Rust (**done**) | Type mapping, generated glue, scaffold, cached builds, manifest checks, the language filter in `draw` |
 
 Each phase ends with the runner tests, mod tests, `lint --all` and `selftest --all` passing, and its docs updated.

@@ -49,6 +49,56 @@ JS_COUNTER = (
 JS_RUNTIMES = [r for r in ("bun", "node") if shutil.which(r)]
 
 
+def _toolchain_env():
+    """The tests run with a temporary HOME; keep finding toolchains that live under the real one (rustup's
+    toolchains, a `go` wrapper that resolves its SDK from HOME)."""
+    extra = {}
+    if shutil.which("go"):
+        p = subprocess.run(["go", "env", "GOROOT"], capture_output=True, text=True)
+        root = p.stdout.strip()
+        if p.returncode == 0 and root:
+            extra["PATH"] = os.path.join(root, "bin") + os.pathsep + os.environ.get("PATH", "")
+    for var, default in (("RUSTUP_HOME", "~/.rustup"), ("CARGO_HOME", "~/.cargo")):
+        value = os.environ.get(var) or os.path.expanduser(default)
+        if os.path.isdir(value):
+            extra[var] = value
+    return extra
+
+
+TOOLCHAIN_ENV = _toolchain_env()
+TYPED = {
+    "go": {
+        "tool": "go", "solution": "solution.go", "panic": "panic: not implemented at solution.go:",
+        "stub": "package main\n\nfunc twoSum(nums []int, target int) []int {\n\tpanic(\"not implemented\")\n}\n",
+        "two_sum": ("package main\n\nimport \"fmt\"\n\nfunc twoSum(nums []int, target int) []int {\n"
+                    "\tfmt.Println(\"debugging\")\n\tseen := map[int]int{}\n\tfor j, x := range nums {\n"
+                    "\t\tif i, ok := seen[target-x]; ok {\n\t\t\treturn []int{i, j}\n\t\t}\n\t\tseen[x] = j\n"
+                    "\t}\n\treturn nil\n}\n"),
+        "counter": ("package main\n\ntype MiniCounter struct{ t int }\n\n"
+                    "func NewMiniCounter() *MiniCounter { return &MiniCounter{} }\n\n"
+                    "func (m *MiniCounter) Add(x int) { m.t += x }\n\nfunc (m *MiniCounter) Total() int { return m.t }\n"),
+        "manifest": ("go.mod", "module solution\n\ngo 1.21\n\nrequire golang.org/x/exp v0.1.0\n"),
+        "found": ["golang.org/x/exp"],
+    },
+    "rust": {
+        "tool": "cargo", "solution": os.path.join("src", "solution.rs"), "panic": "not yet implemented",
+        "stub": "pub fn two_sum(nums: Vec<i64>, target: i64) -> Vec<i64> {\n    todo!()\n}\n",
+        "two_sum": ("use std::collections::HashMap;\n\npub fn two_sum(nums: Vec<i64>, target: i64) -> Vec<i64> {\n"
+                    "    println!(\"debugging\");\n    let mut seen = HashMap::new();\n"
+                    "    for (j, &x) in nums.iter().enumerate() {\n"
+                    "        if let Some(&i) = seen.get(&(target - x)) {\n            return vec![i as i64, j as i64];\n"
+                    "        }\n        seen.insert(x, j);\n    }\n    vec![]\n}\n"),
+        "counter": ("pub struct MiniCounter {\n    t: i64,\n}\n\nimpl MiniCounter {\n"
+                    "    pub fn new() -> Self {\n        MiniCounter { t: 0 }\n    }\n"
+                    "    pub fn add(&mut self, x: i64) {\n        self.t += x;\n    }\n"
+                    "    pub fn total(&mut self) -> i64 {\n        self.t\n    }\n}\n"),
+        "manifest": ("Cargo.toml", '[package]\nname = "mi_solution"\nversion = "0.1.0"\nedition = "2021"\n\n'
+                                   '[dependencies]\nitertools = "0.12"\n'),
+        "found": ["itertools"],
+    },
+}
+
+
 class Env:
     def __init__(self, with_fixtures=True):
         self.tmp = tempfile.mkdtemp(prefix="mi-test-")
@@ -68,7 +118,7 @@ class Env:
     def mi(self, *args, expect_ok=True, stdin=None):
         cmd = [sys.executable, os.path.join(self.plugin, "runner", "mi.py"), "--project", self.project,
                "--data", self.data] + list(args)
-        env = dict(os.environ, HOME=self.home)
+        env = dict(os.environ, HOME=self.home, **TOOLCHAIN_ENV)
         p = subprocess.run(cmd, capture_output=True, text=True, input=stdin, env=env, timeout=120)
         try:
             out = json.loads(p.stdout)
@@ -154,6 +204,11 @@ class RunnerTest(unittest.TestCase):
         out, _ = self.env.mi("lint", bad)
         self.assertTrue(out["pass"])
         self.assertIn("no '## Signature'", out["results"][0]["warnings"][0])
+        with open(bad, "w", encoding="utf-8") as fh:
+            fh.write(text.replace("total() -> int", "total() -> int[] | string[]", 1))
+        out, _ = self.env.mi("lint", bad)
+        self.assertTrue(out["pass"])
+        self.assertEqual([w.split(":")[1] for w in out["results"][0]["warnings"]], [" not offered in Go", " not offered in Rust"])
 
     def test_selftest_checks_oracle_values_against_signature(self):
         path = os.path.join(self.env.plugin, "content", "live-coding", "lc-fx-two-sum.md")
@@ -506,11 +561,63 @@ class LanguageTest(unittest.TestCase):
 
     def test_broken_language_file_is_reported_not_loaded(self):
         self.user_language('id = "py2"\nname = "x"\nsolution = "a.go"\ndetect = ["go"]\nrun = ["{bin}"]\n'
-                           'build = ["go", "build"]\npack_stub = true\n')
+                           'batch = true\npack_stub = true\n')
         out, _ = self.env.mi("langs")
-        self.assertEqual([x["id"] for x in out["languages"]], ["javascript", "python"])
+        self.assertEqual([x["id"] for x in out["languages"]], ["go", "javascript", "python", "rust"])
         message = out["warnings"][0]["message"]
-        self.assertIn("'build' is not supported yet", message)
+        self.assertIn("'batch' is not supported yet", message)
+
+    def test_typed_languages_need_a_signature(self):
+        env = self.env
+        path = os.path.join(env.plugin, "content", "live-coding", "lc-fx-two-sum.md")
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(text.split("## Signature")[0] + "## Tests" + text.split("## Tests")[1])
+        for lang in ("go", "rust"):
+            out, code = env.mi("pick", "lc-fx-two-sum", "--lang", lang, expect_ok=False)
+            self.assertEqual((out["code"], code), ("language_unsupported", 1))
+            self.assertIn("it has no ## Signature", out["error"])
+        self.assertFalse(os.path.exists(os.path.join(env.project, ".mockinterview", "session.json")))
+
+    def check_typed_language(self, lang):
+        env, t = self.env, TYPED[lang]
+        work = os.path.join(".mockinterview", "work")
+        env.mi("pick", "lc-fx-two-sum", "--lang", lang)
+        begin, _ = env.mi("begin")
+        self.assertEqual(begin["files"]["solution"], os.path.join(work, t["solution"]))
+        self.assertIn(os.path.join(work, t["manifest"][0]), begin["files"]["project"])
+        with open(os.path.join(env.project, begin["files"]["solution"]), encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), t["stub"])
+        out, code = env.mi("run", "--mode", "visible")
+        self.assertEqual((code, out["build"]["built"], out["failed"] > 0), (1, True, True), out)
+        self.assertIn(t["panic"], out["failures"][0]["got"])
+        env.write(os.path.join(work, t["solution"]), t["two_sum"])
+        out, code = env.mi("run", "--perf")
+        self.assertEqual((code, out["failed"], out["build"]["built"]), (0, 0, True), out)
+        out, _ = env.mi("run", "--mode", "visible")
+        self.assertFalse(out["build"]["built"])
+        env.write(os.path.join(work, t["solution"]), t["two_sum"] + "\nfn func broken(\n")
+        out, code = env.mi("run", expect_ok=False)
+        self.assertEqual((out["code"], code), ("build_failed", 1))
+        self.assertIn("solution", out["output"])
+        env.mi("abandon")
+        env.mi("draw", "--level", "senior", "--seed", "7", "--lang", lang)
+        env.mi("begin")
+        env.write(os.path.join(work, t["solution"]), t["counter"])
+        out, code = env.mi("run")
+        self.assertEqual((code, out["failed"]), (0, 0), out)
+        env.write(os.path.join(work, t["manifest"][0]), t["manifest"][1])
+        out, code = env.mi("run", expect_ok=False)
+        self.assertEqual((out["code"], out["found"]), ("dependencies_not_allowed", t["found"]))
+
+    @unittest.skipUnless(shutil.which("go"), "go is not on PATH")
+    def test_go_builds_and_runs(self):
+        self.check_typed_language("go")
+
+    @unittest.skipUnless(shutil.which("cargo"), "cargo is not on PATH")
+    def test_rust_builds_and_runs(self):
+        self.check_typed_language("rust")
 
 
 if __name__ == "__main__":

@@ -24,6 +24,9 @@ Every command prints **one JSON object** on stdout. Success: `{"ok": true, ...}`
 |---|---|---|
 | `<project>/.mockinterview/session.json` | `mi.py` only | Current session; read by skills and by the mod |
 | `<project>/.mockinterview/work/solution.py` | `begin` (stub), then the engineer | The solution under test; the name comes from the language file (`solution` in `session.json`) |
+| `<project>/.mockinterview/work/go.mod`, `Cargo.toml` | `begin`, if absent | Go and Rust project files (the language file's `scaffold`); the engineer may add to them |
+| `<project>/.mockinterview/work/mi_main.go`, `src/main.rs`, `src/mi_*.rs` | `begin` and every `run` | Runner-owned glue for Go and Rust, generated from the pack's `## Signature`; rewritten, never edit |
+| `<project>/.mockinterview/build/<language>/` | `run` | Build output and a stamp of the source hash; a build is skipped while the sources are unchanged |
 | `<project>/.mockinterview/work/design.md` | `begin` for design problems | The written design |
 | `<project>/.mockinterview/work/estimate.json` | the engineer | Estimation claims for `estimate-check` |
 | `<project>/.mockinterview/work/PROBLEM.md` | `begin` | Engineer-facing statement; the mod's Problem tab |
@@ -79,11 +82,11 @@ Every command prints **one JSON object** on stdout. Success: `{"ok": true, ...}`
 | `list [--type T] [--level L] [--tag X] [--search WORD] [--roots] [--verbose]` | Index of packs (`id, title, type, level, tags, time_minutes`; `--verbose` adds `source`, `root`, `path`); `--search` also looks inside knowledge documents and adds `body_hits`; with `--roots`, roots, trust status and overrides |
 | `show ID [--full]` | Prints the engineer-facing sections. `--full` (all sections, including hidden) is refused while an interview round is `drawn` or `running`; `show` itself is refused in that state. After the last round (`finished`, `scored`) or `abandon` it works again |
 | `status` | `state`, `mode`, `level`, `round` (1-based, same as `round_number`), `rounds_total`, `type`, `time_minutes`, `title` (null until `begin` in interview mode), `elapsed_seconds`, `remaining_seconds`, `over_time`, `hints_used`, `has_run`, `language`, `solution` |
-| `draw --level L [--type T] [--seed N] [--lang ID] [--runtime ID]` | Starts an interview: builds the loop, draws all rounds, stores them, state `drawn`. Output has round count and round types, **no titles**, and `language`, `runtime`, `toolchain` (the detected version) when a round is live coding |
+| `draw --level L [--type T] [--seed N] [--lang ID] [--runtime ID]` | Starts an interview: builds the loop, draws all rounds, stores them, state `drawn`. Output has round count and round types, **no titles**, and `language`, `runtime`, `toolchain` (the detected version) when a round is live coding. For Go and Rust it draws only problems whose signature the language can express (a `warnings` entry counts the others) |
 | `pick ID [--replace] [--lang ID] [--runtime ID]` | Starts a practice session on one problem (engineer's choice), state `drawn`. Same language fields as `draw` for a live-coding problem |
 | `langs` | Lists the language files: `id`, `name`, `solution`, `root`, `path`, `trusted`, `available`, `version`, and `runtimes` (each with `available` and `version`) when the language has them; broken files in `warnings` |
-| `begin` | State `running`, starts the clock, writes `PROBLEM.md`, archives any earlier solution file or `design.md` into `work/archive/` (never deletes), writes the stub (the pack's `## Stub`, or the language file's template) or design template. Output: `statement`, `title`, `limit_seconds`, `started_at`, `files`, `problem_file`. One way: no re-draw |
-| `run [--mode visible\|all] [--perf] [--fuzz N]` | Runs the session's solution file against the current round's tests (live-coding only). In interview mode it first refuses imports outside the standard library: `dependencies_not_allowed`, with `found` |
+| `begin` | State `running`, starts the clock, writes `PROBLEM.md`, archives any earlier solution file or `design.md` into `work/archive/` (never deletes), writes the stub (the pack's `## Stub`, the language file's template, or for Go and Rust one generated from the `## Signature`) or design template, and for Go and Rust the project files and glue. Output: `statement`, `title`, `limit_seconds`, `started_at`, `files` (`solution` or `design`; `project` lists files written beside the solution), `problem_file`. One way: no re-draw |
+| `run [--mode visible\|all] [--perf] [--fuzz N]` | Runs the session's solution file against the current round's tests (live-coding only). In interview mode it first refuses imports outside the standard library: `dependencies_not_allowed`, with `found`. Go and Rust: rewrites the glue and builds first (`build`: `{"built": true, "seconds": 0.6}`, `built` false when the sources were unchanged); a failed build is `build_failed` |
 | `hint` | Returns the next ladder rung from the notes and records its cost. Interview mode counts it; it never skips a rung. Output: `rung`, `cost`, `text`, `penalty_total`, `rungs_left` |
 | `notes [--section clarify\|followups\|traps\|reference\|all] [--problem ID]` | The interviewer's route to hidden notes for the current round (or a finished round of this session with `--problem`). `reference` also returns the oracle for live-coding problems. Hint and probe ladders are never returned here; use `hint`. Refused before `begin` in interview mode |
 | `finish` | Stops the round, stores the result. More rounds: state `drawn`, `round` advances. Last round: state `finished` |
@@ -105,7 +108,9 @@ Language errors (exit `1`):
 | `unknown_runtime` | The language has no runtime with that id |
 | `toolchain_missing` | The language's `detect` command failed, or its `run` command could not be started |
 | `untrusted` | The language file is outside the built-in root and its folder is not trusted; `root` names it |
-| `dependencies_not_allowed` | Interview mode, `run`: the solution imports something outside the standard library (JavaScript: or `work/package.json` lists packages); `found` lists it |
+| `dependencies_not_allowed` | Interview mode, `run`: the solution imports something outside the standard library (JavaScript: or `work/package.json` lists packages; Go: `go.mod` has a `require`; Rust: `Cargo.toml` has dependencies); `found` lists it |
+| `language_unsupported` | `pick`/`draw`: Go or Rust cannot run this problem, because it has no `## Signature` or uses a type the language's glue cannot express |
+| `build_failed` | `run`, Go and Rust: the compiler failed; `output` holds its last 60 lines, paths relative to `work/`. Nothing ran and `last_run` is unchanged |
 
 ## run result
 

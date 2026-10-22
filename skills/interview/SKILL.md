@@ -19,7 +19,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/runner/mi.py" --data "${CLAUDE_PLUGIN_DATA}" COMM
 
 - Extra pack folder from the plugin options: `${user_config.packs_dir}`. If that is a real absolute path, add `--root "<that path>"` to every call. If it is empty or still looks like a placeholder, leave `--root` out.
 - The runner works in the current project folder. Session files are in `.mockinterview/`.
-- Solution language: if the engineer names one, use its id (JavaScript, JS, Node or Bun: `javascript`); else use the plugin option `${user_config.default_language}` when it is a real id (not empty, not a placeholder); else leave `--lang` out (Python). Pass it as `--lang ID` to `draw`. If the runner answers `unknown_language` or `toolchain_missing`, say so in one sentence and offer `langs`, which lists the languages and whether each toolchain is installed. When the session's `language` is not `python`, say once after the statement that it shows Python names and the stub in the work file has the names to use (JavaScript: camelCase, so `two_sum` is `twoSum`).
+- Solution language: if the engineer names one, use its id (JavaScript, JS, Node or Bun: `javascript`; Go or Golang: `go`; Rust: `rust`); else use the plugin option `${user_config.default_language}` when it is a real id (not empty, not a placeholder); else leave `--lang` out (Python). Pass it as `--lang ID` to `draw`. If the runner answers `unknown_language` or `toolchain_missing`, say so in one sentence and offer `langs`, which lists the languages and whether each toolchain is installed. If it answers `language_unsupported`, the problem has no typed signature that Go or Rust can use: say so and offer Python, JavaScript or drawing again with another language. When the session's `language` is not `python`, say once after the statement that it shows Python names and the stub in the work file has the names and types to use (JavaScript and Go functions: camelCase, so `two_sum` is `twoSum`; Go methods: `GetMin`, constructor `NewMinStack`; Rust keeps `two_sum`, constructor `new`). Go and Rust work files are a normal project (`go.mod`, `Cargo.toml`); the runner owns and rewrites `mi_main.go` or `src/main.rs`, `src/mi_json.rs` and `src/mi_types.rs`, and those files hold the problem's record and tuple types.
 - Every command prints one JSON object. Parse it. If `ok` is false, read `error` and `code`, say in one plain sentence what is wrong, and fix the cause (usually a wrong state). Never retry the same call blindly.
 - Commands you use: `status`, `langs`, `draw`, `begin`, `run`, `hint`, `notes`, `estimate-check`, `design-lint`, `finish`, `score`, `abandon`, `repeat`.
 
@@ -111,7 +111,7 @@ If the engineer wants to stop at any time, confirm once, run `abandon`, and say 
 | `status` | `state`, `round`, `rounds_total`, `elapsed_seconds`, `remaining_seconds` |
 | `draw` | `ok`, `warnings`; round list from `.mockinterview/session.json` |
 | `begin` | `statement`, `limit_seconds`, `files.solution` |
-| `run` | `passed`, `failed`, `total`, `by_category`, `perf.lines`, `failures[]` (`name`, `shown`, `args`, `expected`, `got`) |
+| `run` | `passed`, `failed`, `total`, `by_category`, `perf.lines`, `failures[]` (`name`, `shown`, `args`, `expected`, `got`). Go and Rust: `code: build_failed` with the compiler's `output` means nothing ran; show the output as it is (it is the engineer's own code, so this is allowed during the round) |
 | `hint` | `rung`, `cost`, `text` |
 | `notes` | `text` |
 | `score` | `scorecard` (`total`, `reading`, `rounds[]`, `top_gap`) |

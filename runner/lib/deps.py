@@ -8,6 +8,7 @@ import json
 import os
 import re
 import sys
+import tomllib
 
 
 def check_python(solution):
@@ -71,8 +72,50 @@ def check_npm(solution):
     return found
 
 
-CHECKS = {"python": check_python, "npm": check_npm}
+GO_REQUIRE_RE = re.compile(r"^\s*require\s*(\(|\S+)", re.M)
 
 
-def check(kind, solution):
-    return CHECKS[kind](solution)
+def check_go(solution, work):
+    """go.mod requires no modules."""
+    try:
+        with open(os.path.join(work, "go.mod"), encoding="utf-8") as fh:
+            text = re.sub(r"//[^\n]*", "", fh.read())
+    except OSError:
+        return []
+    found = []
+    for m in GO_REQUIRE_RE.finditer(text):
+        if m.group(1) != "(":
+            names = [m.group(1)]
+        else:
+            block = text[m.end():text.find(")", m.end())]
+            names = [ln.split()[0] for ln in block.splitlines() if ln.strip()]
+        found += [n for n in names if n not in found]
+    return found
+
+
+CARGO_TABLES = ("dependencies", "dev-dependencies", "build-dependencies")
+
+
+def check_cargo(solution, work):
+    """Cargo.toml has no [dependencies], [dev-dependencies] or [build-dependencies], target ones included."""
+    try:
+        with open(os.path.join(work, "Cargo.toml"), "rb") as fh:
+            data = tomllib.load(fh)
+    except (OSError, tomllib.TOMLDecodeError):
+        return []
+    tables = [data] + [t for t in (data.get("target") or {}).values() if isinstance(t, dict)]
+    found = []
+    for table in tables:
+        for key in CARGO_TABLES:
+            for name in table.get(key) or {}:
+                if name not in found:
+                    found.append(name)
+    return found
+
+
+CHECKS = {"python": lambda s, w: check_python(s), "npm": lambda s, w: check_npm(s), "go": check_go,
+          "cargo": check_cargo}
+
+
+def check(kind, solution, work):
+    return CHECKS[kind](solution, work)

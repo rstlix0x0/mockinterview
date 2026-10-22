@@ -69,11 +69,14 @@ def _guard_new_session(ctx, existing, replace=False):
         raise MiError("the last session is finished but not scored; run score, or abandon", code="unscored")
 
 
-def _choose_language(ctx, a, needed):
+def _choose_language(ctx, a, live_packs):
     """Session fields for the solution language, checked now so a missing toolchain fails before the clock."""
-    if not needed:
+    if not live_packs:
         return {"language": None, "runtime": None, "solution": None}, None
     lang = languages.get(ctx, a.lang)
+    if lang.glue:
+        for pack in live_packs:
+            lang.generator(pack)  # language_unsupported when the signature cannot be expressed
     version = lang.select(a.runtime)
     return {"language": lang.id, "runtime": lang.runtime,
             "solution": _rel(ctx, os.path.join(ctx.work_dir, lang.solution))}, version
@@ -170,7 +173,8 @@ def cmd_draw(ctx, a):
         raise MiError("type must be one of: %s" % ", ".join(PACK_TYPES), code="bad_type")
     _guard_new_session(ctx, sess.load(ctx, required=False))
     index = packs.build_index(ctx)
-    skipped = []
+    skipped, unsupported = [], []
+    target = languages.get(ctx, a.lang) if a.type in (None, "live-coding") else None
 
     def eligible(pack):
         try:
@@ -183,6 +187,9 @@ def cmd_draw(ctx, a):
         if pack.type == "live-coding" and not packs.is_trusted(ctx, pack.root_label, pack.root):
             skipped.append("%s: root not trusted" % pack.id)
             return False
+        if pack.type == "live-coding" and target is not None and not target.supports(pack):
+            unsupported.append(pack.id)
+            return False
         return True
 
     seed = a.seed if a.seed is not None else random.SystemRandom().randrange(1, 2 ** 31)
@@ -193,7 +200,10 @@ def cmd_draw(ctx, a):
                       code="empty_pool")
     if skipped:
         warnings.append("skipped %d invalid or untrusted pack(s), for example: %s" % (len(skipped), skipped[0]))
-    lang_fields, version = _choose_language(ctx, a, any(p.type == "live-coding" for p in chosen))
+    if unsupported:
+        warnings.append("%d live-coding pack(s) are not offered in %s because their signature cannot be expressed "
+                        "there, for example: %s" % (len(set(unsupported)), target.name, sorted(set(unsupported))[0]))
+    lang_fields, version = _choose_language(ctx, a, [p for p in chosen if p.type == "live-coding"])
     session = {
         "schema": sess.SCHEMA, "session_id": sess.new_session_id(), "mode": "interview", "level": a.level,
         "state": "drawn", "seed": seed, "round": 0, "rounds_total": len(chosen), **lang_fields,
@@ -220,7 +230,7 @@ def cmd_pick(ctx, a):
     index = packs.build_index(ctx)
     pack = _get_pack(index, a.id)
     _runnable(ctx, pack)
-    lang_fields, version = _choose_language(ctx, a, pack.type == "live-coding")
+    lang_fields, version = _choose_language(ctx, a, [pack] if pack.type == "live-coding" else [])
     session = {
         "schema": sess.SCHEMA, "session_id": sess.new_session_id(), "mode": "practice", "level": None,
         "state": "drawn", "seed": None, "round": 0, "rounds_total": 1, **lang_fields,
@@ -274,8 +284,14 @@ def cmd_begin(ctx, a):
         target = os.path.join(ctx.work_dir, lang.solution)
         archived = _archive_and_write(ctx, target, lang.stub(pack))
         files["solution"] = _rel(ctx, target)
+        project = execute.write_scaffold(lang, ctx.work_dir) + execute.write_glue(lang, pack, ctx.work_dir)
+        if project:
+            files["project"] = [_rel(ctx, f) for f in project]
         work_note = ("Work file: `%s`. Edit it in your own editor. When you are ready, ask the interviewer "
                      "to run your tests." % files["solution"])
+        if not lang.pack_stub:
+            work_note += (" The statement uses the Python names; the stub in the work file has the %s names "
+                          "and types." % lang.name.split(" (")[0].split(" ")[0])
     else:
         with open(os.path.join(ctx.runner_dir, "templates", "design-template.md"), encoding="utf-8") as fh:
             template = fh.read()
@@ -314,15 +330,18 @@ def cmd_run(ctx, a):
         raise MiError("no solution file at %s" % _rel(ctx, solution), code="no_solution")
     interview = session["mode"] == "interview"
     if interview and lang.deps_check:
-        found = deps.check(lang.deps_check, solution)
+        found = deps.check(lang.deps_check, solution, lang.work_of(solution))
         if found:
             raise MiError("interview rounds use the standard library only: found %s"
                           % ", ".join("'%s'" % n for n in found), code="dependencies_not_allowed", found=found)
     index = packs.build_index(ctx)
     pack = _get_pack(index, rnd["problem"])
     _runnable(ctx, pack)
+    build = execute.prepare(ctx, lang, pack, solution)
     result = execute.run_suite(ctx, pack, lang, solution, mode=a.mode, perf=a.perf, fuzz=a.fuzz, seed=a.seed,
                                factor=a.factor, timeout=a.timeout, interview=interview)
+    if build is not None:
+        result["build"] = build
     result["ok"] = True
     result["mode"] = a.mode
     result["pass"] = result["failed"] == 0

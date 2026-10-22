@@ -106,7 +106,7 @@ put(key: int, value: int) -> void
 | `A \| B` | either; group with parentheses: `(int \| string)[]`. Typed languages may not offer a pack that needs it |
 | `void` | a method's return type when it returns nothing |
 
-`lint` checks the grammar and that the names, parameters (in order) and methods are exactly the stub's. `selftest` runs the oracle on every case, the fuzz seeds and (with `--perf`) the perf inputs and checks each input and result against the signature: a value that does not conform fails the pack with `signature_errors`, such as `case 'example-1' result[1]: expected string, got int 1`. Prefer the type the tests really use (`string` keys rather than `int | string`) so that typed languages can offer the pack.
+`lint` checks the grammar and that the names, parameters (in order) and methods are exactly the stub's. It also warns when Go or Rust cannot express a type (`signature: not offered in Go: ...`); such a pack still runs in Python and JavaScript. How each type looks in Go and Rust is in [languages.md](languages.md#go-and-rust). `selftest` runs the oracle on every case, the fuzz seeds and (with `--perf`) the perf inputs and checks each input and result against the signature: a value that does not conform fails the pack with `signature_errors`, such as `case 'example-1' result[1]: expected string, got int 1`. Prefer the type the tests really use (`string` keys rather than `int | string`) so that typed languages can offer the pack.
 
 ## Oracle block
 

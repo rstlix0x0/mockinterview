@@ -1,0 +1,21 @@
+# Go solutions: the runner writes typed glue (mi_main.go) from the pack's ## Signature and builds once per run.
+# Format: docs/languages.md.
+id         = "go"
+name       = "Go 1.21+"
+solution   = "solution.go"
+glue       = "go"                     # stub and mi_main.go come from the pack's ## Signature
+naming     = "camel"                  # method names in the request and in failure reports: getMin
+detect     = ["go", "version"]
+build      = ["go", "build", "-o", "{bin}", "."]
+bin        = "{build}/solution"
+run        = ["{bin}", "{result}"]
+env        = { GOPROXY = "off", GOTOOLCHAIN = "local", GOFLAGS = "-mod=mod", CGO_ENABLED = "0" }
+env_pass   = ["GOPATH", "GOMODCACHE", "GOCACHE", "GOROOT", "XDG_CACHE_HOME"]
+deps_check = "go"
+
+[scaffold]
+"go.mod" = """
+module solution
+
+go 1.21
+"""
