@@ -4,7 +4,6 @@ One TOML file per language in `languages/` of the built-in, user and project roo
 same id. Files outside the built-in root run commands, so they need `mi.py trust` like pack roots. The format
 is in docs/languages.md.
 """
-import ast
 import os
 import re
 import subprocess
@@ -16,13 +15,16 @@ from .util import MiError
 
 DEFAULT = "python"
 DETECT_TIMEOUT = 15
-REQUIRED = ("id", "name", "solution", "detect", "run")
-KNOWN = set(REQUIRED) | {"shim", "pack_stub", "stub_func", "stub_ops", "time_factor", "env_pass", "env",
-                         "runtimes", "deps_check"}
-PLANNED = {"build", "glue", "scaffold", "naming", "batch"}  # compiled and renamed languages, not built yet
+REQUIRED = ("id", "name", "solution")
+KNOWN = set(REQUIRED) | {"detect", "run", "shim", "pack_stub", "stub_func", "stub_ops", "stub_method", "naming",
+                         "call", "time_factor", "env_pass", "env", "runtimes", "deps_check"}
+PLANNED = {"build", "glue", "scaffold", "batch"}  # compiled languages, not built yet
 ARGV_VARS = {"python", "shim", "solution", "work", "result"}
-STUB_VARS = {"entry", "params"}
-DEPS_CHECKS = {"python"}
+STUB_VARS = {"entry", "params", "methods"}
+METHOD_VARS = {"name", "params"}
+NAMINGS = ("snake", "camel")
+CALLS = ("named", "positional")
+DEPS_CHECKS = {"python", "npm"}
 BASE_ENV = ("PATH", "HOME", "LANG", "LC_ALL", "SYSTEMROOT", "TMPDIR")
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 VAR_RE = re.compile(r"\{([A-Za-z_]+)\}")
@@ -65,7 +67,10 @@ def validate(data):
     if isinstance(sol, str) and (os.path.isabs(sol) or ".." in sol.replace("\\", "/").split("/")):
         errors.append("solution must be a path inside work/")
     for key in ("detect", "run"):
-        if not _str_list(data[key]):
+        if key not in data:
+            if "runtimes" not in data:
+                errors.append("%s is required unless runtimes are given" % key)
+        elif not _str_list(data[key]):
             errors.append("%s must be a non-empty list of strings" % key)
         else:
             _check_vars(key, data[key], ARGV_VARS, errors)
@@ -75,6 +80,16 @@ def validate(data):
                 errors.append("%s is required unless pack_stub = true" % key)
             else:
                 _check_vars(key, [data[key]], STUB_VARS, errors)
+    if "stub_method" in data:
+        if not isinstance(data["stub_method"], str):
+            errors.append("stub_method must be a string")
+        else:
+            _check_vars("stub_method", [data["stub_method"]], METHOD_VARS, errors)
+    elif "{methods}" in str(data.get("stub_ops", "")):
+        errors.append("stub_ops uses {methods}, which needs stub_method")
+    for key, allowed in (("naming", NAMINGS), ("call", CALLS)):
+        if key in data and data[key] not in allowed:
+            errors.append("%s must be one of: %s" % (key, ", ".join(allowed)))
     if "time_factor" in data and not (isinstance(data["time_factor"], (int, float))
                                       and not isinstance(data["time_factor"], bool) and data["time_factor"] > 0):
         errors.append("time_factor must be a positive number")
@@ -116,9 +131,11 @@ class Language:
         self.pack_stub = bool(data.get("pack_stub"))
         self.time_factor = float(data.get("time_factor", 1.0))
         self.deps_check = data.get("deps_check")
+        self.naming = data.get("naming", "snake")
+        self.call = data.get("call", "named")
         self.runtimes = data.get("runtimes") or []
-        self.runtime = None                  # chosen runtime id, set by select()
-        self.run_argv = list(data["run"])    # the chosen runtime's run command
+        self.runtime = None                                        # chosen runtime id, set by select()
+        self.run_argv = list(data.get("run") or self.runtimes[0]["run"])  # the chosen runtime's run command
 
     def summary(self):
         return {"id": self.id, "name": self.name, "solution": self.solution, "root": self.root_label,
@@ -192,27 +209,51 @@ class Language:
         if runtime:
             raise MiError("language '%s' no longer has runtime '%s'" % (self.id, runtime), code="unknown_runtime")
 
+    def ident(self, name):
+        """A pack name (snake_case, from the Python stub) as this language spells it."""
+        if self.naming != "camel" or "_" not in name.strip("_"):
+            return name
+        head, *rest = name.strip("_").split("_")
+        return head + "".join(w[:1].upper() + w[1:] for w in rest)
+
+    def request(self, suite, args, params):
+        """The stdin request for one test case. `params` is the order of the stub's parameters."""
+        if suite["kind"] == "ops":
+            calls = [[name if i == 0 else self.ident(name), a] for i, (name, a) in enumerate(args["calls"])]
+            return {"function": suite["function"], "calls": calls}
+        if self.call == "named":
+            return {"function": self.ident(suite["function"]), "args": args}
+        if sorted(args) != sorted(params):
+            raise MiError("the test arguments %s do not match the stub's parameters %s"
+                          % (sorted(args), params), code="bad_pack")
+        return {"function": self.ident(suite["function"]), "args": [args[p] for p in params]}
+
+    def params(self, pack):
+        """Parameter names of the pack's entry function, in the order of its Python stub."""
+        return packs.stub_signatures(pack.stub() or "", pack.suite()["function"])[0] or []
+
     def stub(self, pack):
         """The starting content of the solution file for a live-coding pack."""
         source = pack.stub() or ""
         if self.pack_stub:
             return source
         suite = pack.suite()
-        template = self.data["stub_ops"] if suite["kind"] == "ops" else self.data["stub_func"]
-        values = {"entry": suite["function"], "params": ", ".join(_stub_params(source, suite["function"]))}
-        return VAR_RE.sub(lambda m: values[m.group(1)], template)
+        params, methods = packs.stub_signatures(source, suite["function"])
+        params = params or []
 
+        def render(template, values):
+            return VAR_RE.sub(lambda m: values[m.group(1)], template)
 
-def _stub_params(source, name):
-    """Parameter names of the function `name` in the pack's Python stub."""
-    try:
-        tree = ast.parse(source)
-    except SyntaxError:
-        return []
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name:
-            return [a.arg for a in node.args.args]
-    return []
+        def plist(names):
+            return ", ".join(self.ident(p) for p in names)
+
+        if suite["kind"] == "ops":
+            body = "".join(render(self.data.get("stub_method", ""), {"name": self.ident(n), "params": plist(p)})
+                           for n, p in methods)
+            values = {"entry": suite["function"], "params": plist(params), "methods": body}
+            return render(self.data["stub_ops"], values)
+        values = {"entry": self.ident(suite["function"]), "params": plist(params), "methods": ""}
+        return render(self.data["stub_func"], values)
 
 
 # ----------------------------------------------------------------- discovery

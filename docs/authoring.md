@@ -46,7 +46,7 @@ Sections are level-2 headings (`## Name`). Names are case-insensitive. Headings 
 | Type | Section | Audience | Content |
 |---|---|---|---|
 | live-coding | `## Statement` | Engineer | The whole problem as the interviewer says it: description, signature, constraints, examples |
-| live-coding | `## Stub` | Engineer | One fenced `python` block copied to `work/solution.py` at the start (another language gets its language file's stub template, see languages.md) |
+| live-coding | `## Stub` | Engineer | One fenced `python` block copied to `work/solution.py` at the start (another language gets its language file's stub template, see languages.md). Its parameter names and order are the contract for other languages: each test's `args` keys must be exactly the entry's parameters, and JavaScript receives them positionally in this order |
 | live-coding | `## Tests` | Hidden | One fenced `json tests` block (see below) |
 | live-coding | `## Oracle` | Hidden | One fenced `python oracle` block: the reference solution and generators |
 | live-coding | `## Interviewer notes` | Hidden | Clarifying questions, hint ladder, follow-ups, traps |

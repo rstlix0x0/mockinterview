@@ -29,6 +29,24 @@ GOOD_TWO_SUM = (
     "        seen[x] = j\n"
 )
 BAD_TWO_SUM = "def two_sum(nums, target):\n    return [0, 0]\n"
+JS_TWO_SUM = (
+    "function twoSum(nums, target) {\n"
+    "  console.log('debugging');\n"
+    "  const seen = new Map();\n"
+    "  for (let j = 0; j < nums.length; j++) {\n"
+    "    if (seen.has(target - nums[j])) return [seen.get(target - nums[j]), j];\n"
+    "    seen.set(nums[j], j);\n"
+    "  }\n"
+    "}\n\nmodule.exports = { twoSum };\n"
+)
+JS_COUNTER = (
+    "export class MiniCounter {\n"
+    "  constructor() { this.t = 0; }\n"
+    "  add(x) { this.t += x; }\n"
+    "  total() { return BigInt(this.t); }\n"
+    "}\n"
+)
+JS_RUNTIMES = [r for r in ("bun", "node") if shutil.which(r)]
 
 
 class Env:
@@ -103,13 +121,16 @@ class RunnerTest(unittest.TestCase):
         with open(bad, "w") as fh:
             fh.write("---\nid: lc-bad\ntitle: Bad\ntype: live-coding\nlevel: [expert]\ntags: [x]\n"
                      "time_minutes: 5\nentry: f\nkind: func\nruns_code: true\nlanguages: [python]\n---\n"
-                     "# Bad\n\n## Statement\n\nx\n")
+                     "# Bad\n\n## Statement\n\nx\n\n## Stub\n\n```python\ndef f(a, b):\n    pass\n```\n\n"
+                     "## Tests\n\n```json tests\n{\"function\": \"f\", \"kind\": \"func\", \"cases\": [\n"
+                     "{\"name\": \"v\", \"tags\": [\"visible\"], \"args\": {\"a\": 1, \"c\": 2}}]}\n```\n")
         out, code = self.env.mi("lint", bad)
         self.assertFalse(out["pass"])
         self.assertEqual(code, 1)
         errors = " ".join(out["results"][0]["errors"])
         self.assertIn("level 'expert'", errors)
         self.assertIn("missing section", errors)
+        self.assertIn("case 'v' args ['a', 'c'] must be the stub's parameters ['a', 'b']", errors)
 
     def test_project_pack_overrides_builtin_and_needs_trust(self):
         src = os.path.join(self.env.plugin, "content", "live-coding", "lc-fx-two-sum.md")
@@ -397,11 +418,61 @@ class LanguageTest(unittest.TestCase):
         self.assertEqual((py2["root"], py2["runtime"]), ("user", "here"))
         self.assertEqual([r["available"] for r in py2["runtimes"]], [False, True])
 
+    @unittest.skipUnless(JS_RUNTIMES, "neither bun nor node is on PATH")
+    def test_javascript_stubs_and_runs_on_each_runtime_found(self):
+        env = self.env
+        for runtime in JS_RUNTIMES:
+            with self.subTest(runtime=runtime):
+                out, _ = env.mi("pick", "lc-fx-two-sum", "--lang", "javascript", "--runtime", runtime)
+                self.assertEqual((out["language"], out["runtime"]), ("javascript", runtime))
+                begin, _ = env.mi("begin")
+                self.assertEqual(begin["files"]["solution"], os.path.join(".mockinterview", "work", "solution.js"))
+                with open(os.path.join(env.project, begin["files"]["solution"]), encoding="utf-8") as fh:
+                    self.assertEqual(fh.read(), "function twoSum(nums, target) {\n}\n\nmodule.exports = { twoSum };\n")
+                out, code = env.mi("run")
+                self.assertEqual((code, out["failed"] > 0), (1, True))
+                env.write(".mockinterview/work/solution.js", JS_TWO_SUM)
+                out, code = env.mi("run")
+                self.assertEqual((code, out["failed"]), (0, 0), out)
+                env.mi("abandon")
+                env.mi("pick", "lc-fx-counter", "--lang", "javascript", "--runtime", runtime)
+                env.mi("begin")
+                with open(os.path.join(env.project, ".mockinterview", "work", "solution.js"), encoding="utf-8") as fh:
+                    stub = fh.read()
+                self.assertIn("class MiniCounter {\n  constructor() {\n  }\n\n  add(x) {\n  }\n", stub)
+                env.write(".mockinterview/work/solution.js", JS_COUNTER.replace("this.t += x", "this.t -= x"))
+                out, code = env.mi("run")
+                self.assertEqual(code, 1)
+                self.assertIn('["add", [1]]', out["failures"][0]["args"])
+                env.write(".mockinterview/work/solution.js", JS_COUNTER)
+                out, code = env.mi("run")
+                self.assertEqual((code, out["failed"]), (0, 0), out)
+                env.mi("abandon")
+
+    @unittest.skipUnless(JS_RUNTIMES, "neither bun nor node is on PATH")
+    def test_javascript_interview_refuses_packages(self):
+        env = self.env
+        env.mi("draw", "--level", "senior", "--seed", "7", "--lang", "javascript")
+        env.mi("begin")
+        allowed = ("const fs = require('node:fs');\nconst p = require(\"fs/promises\");\n"
+                   "import { x } from './helper.js';\n// require('commented-out')\n")
+        env.write(".mockinterview/work/solution.js", allowed + "import _ from 'lodash';\n"
+                  "const z = await import(\"@scope/pkg/sub\");\n" + JS_COUNTER)
+        env.write(".mockinterview/work/package.json", '{"devDependencies": {"jest": "1"}}')
+        out, code = env.mi("run", expect_ok=False)
+        self.assertEqual((out["code"], code), ("dependencies_not_allowed", 1))
+        self.assertEqual(out["found"], ["jest", "lodash", "@scope/pkg"])
+        env.write(".mockinterview/work/package.json", '{"name": "work"}')
+        env.write(".mockinterview/work/solution.js", JS_COUNTER.replace("export class", "const fs = require('fs');\nclass")
+                  + "module.exports = { MiniCounter };\n")
+        out, code = env.mi("run")
+        self.assertEqual((code, out["failed"]), (0, 0), out)
+
     def test_broken_language_file_is_reported_not_loaded(self):
         self.user_language('id = "py2"\nname = "x"\nsolution = "a.go"\ndetect = ["go"]\nrun = ["{bin}"]\n'
                            'build = ["go", "build"]\npack_stub = true\n')
         out, _ = self.env.mi("langs")
-        self.assertEqual([x["id"] for x in out["languages"]], ["python"])
+        self.assertEqual([x["id"] for x in out["languages"]], ["javascript", "python"])
         message = out["warnings"][0]["message"]
         self.assertIn("'build' is not supported yet", message)
 

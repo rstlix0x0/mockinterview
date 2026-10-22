@@ -1,4 +1,5 @@
 """Pack parsing, discovery, trust and lint. Standard library only."""
+import ast
 import json
 import os
 import re
@@ -281,6 +282,32 @@ def build_index(ctx):
     return index
 
 
+def stub_signatures(source, name):
+    """([params], [(method, [params]), ...]) of the function or class `name` in the pack's Python stub.
+
+    For a class, the params are the constructor's; `self` and dunder methods are left out. (None, []) when the
+    stub does not define `name`."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return None, []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name:
+            return [a.arg for a in node.args.args], []
+        if isinstance(node, ast.ClassDef) and node.name == name:
+            params, methods = [], []
+            for item in node.body:
+                if not isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    continue
+                names = [a.arg for a in item.args.args][1:]
+                if item.name == "__init__":
+                    params = names
+                elif not item.name.startswith("__"):
+                    methods.append((item.name, names))
+            return params, methods
+    return None, []
+
+
 # ----------------------------------------------------------------------- lint
 
 def _list_of(meta, key):
@@ -362,6 +389,7 @@ def _lint_live_coding(pack, err, warn, check_oracle):
     stub = pack.stub()
     if pack.section("stub") and not stub:
         err("## Stub needs one fenced 'python' block")
+    params = stub_signatures(stub, meta.get("entry") or "")[0] if stub and meta.get("kind") == "func" else None
     suite = None
     if pack.section("tests"):
         try:
@@ -398,6 +426,8 @@ def _lint_live_coding(pack, err, warn, check_oracle):
                     err("ops case '%s' must start with a constructor call to %s" % (name, suite.get("function")))
             elif not isinstance(args, dict):
                 err("case '%s' needs an 'args' object" % name)
+            elif params is not None and sorted(args) != sorted(params):
+                err("case '%s' args %s must be the stub's parameters %s" % (name, sorted(args), params))
         if tagcount["visible"] == 0:
             err("at least one 'visible' case is required")
         if tagcount["hidden"] == 0:
@@ -417,7 +447,6 @@ def _lint_live_coding(pack, err, warn, check_oracle):
             err("oracle does not compile: %s" % exc)
             return
         # check that required names exist without running generators
-        import ast
         tree = ast.parse(src)
         names = {n.name for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))}
         entry = meta.get("entry")

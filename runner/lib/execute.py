@@ -104,10 +104,8 @@ def _limits(timeout):
     return apply
 
 
-def run_case(ctx, lang, solution, suite, args, timeout):
-    """Return (ok, value, error text, seconds)."""
-    req = {"function": suite["function"]}
-    req.update(args if suite["kind"] == "ops" else {"args": args})
+def run_case(ctx, lang, solution, req, timeout):
+    """Run one request (from `Language.request`). Return (ok, value, error text, seconds)."""
     kwargs = {}
     if os.name == "posix" and getattr(ctx, "limits", True):
         kwargs["preexec_fn"] = _limits(timeout)
@@ -142,6 +140,11 @@ def run_suite(ctx, pack, lang, solution, mode="all", perf=False, fuzz=None, seed
     """Run the tests of one live-coding pack. Returns the `run` result dict."""
     factor *= lang.time_factor
     suite = pack.suite()
+    params = lang.params(pack)
+
+    def request(args):
+        return lang.request(suite, args, params)
+
     ns = load_oracle(pack)
     cmode = suite.get("compare", "exact")
     wanted = {"visible"} if mode == "visible" else {"visible", "edge", "hidden"}
@@ -154,7 +157,8 @@ def run_suite(ctx, pack, lang, solution, mode="all", perf=False, fuzz=None, seed
         shown = (not interview) or tag == "visible"
         shown = shown and sum(1 for f in failures if f["shown"]) < SHOW_LIMIT
         entry = {"name": name, "category": tag, "shown": shown}
-        if shown:
+        if shown:  # class calls as the solution's language names them
+            args = {"calls": request(args)["calls"]} if suite["kind"] == "ops" else args
             entry.update(args=short(args), expected=short(expected), got=got_text)
         failures.append(entry)
 
@@ -163,7 +167,7 @@ def run_suite(ctx, pack, lang, solution, mode="all", perf=False, fuzz=None, seed
         if tag not in wanted:
             continue
         expected = oracle_expected(ns, suite, case["args"])
-        ok, got, err, _dt = run_case(ctx, lang, solution, suite, case["args"], timeout * factor)
+        ok, got, err, _dt = run_case(ctx, lang, solution, request(case["args"]), timeout * factor)
         good = ok and same(expected, got, cmode)
         s = stats.setdefault(tag, [0, 0])
         s[1] += 1
@@ -177,7 +181,7 @@ def run_suite(ctx, pack, lang, solution, mode="all", perf=False, fuzz=None, seed
         for sd in range(seed, seed + n_fuzz):
             args = ns["gen_random"](sd)
             expected = oracle_expected(ns, suite, args)
-            ok, got, err, _dt = run_case(ctx, lang, solution, suite, args, timeout * factor)
+            ok, got, err, _dt = run_case(ctx, lang, solution, request(args), timeout * factor)
             good = ok and same(expected, got, cmode)
             s[1] += 1
             s[0] += 1 if good else 0
@@ -186,7 +190,7 @@ def run_suite(ctx, pack, lang, solution, mode="all", perf=False, fuzz=None, seed
                 break
 
     if perf and mode != "visible" and suite.get("perf"):
-        perf_info = _run_perf(ctx, pack, lang, solution, suite, ns, cmode, factor, timeout)
+        perf_info = _run_perf(ctx, pack, lang, solution, suite, request, ns, cmode, factor, timeout)
         s = stats.setdefault("perf", [0, 0])
         s[1] += 1
         s[0] += 1 if perf_info["ok"] else 0
@@ -203,11 +207,11 @@ def run_suite(ctx, pack, lang, solution, mode="all", perf=False, fuzz=None, seed
     }
 
 
-def _run_perf(ctx, pack, lang, solution, suite, ns, cmode, factor, timeout):
+def _run_perf(ctx, pack, lang, solution, suite, request, ns, cmode, factor, timeout):
     p = suite["perf"]
     os.makedirs(ctx.perf_cache, exist_ok=True)
-    base_args = suite["cases"][0]["args"]
-    base = min(run_case(ctx, lang, solution, suite, base_args, timeout * factor)[3] for _ in range(3))
+    base_req = request(suite["cases"][0]["args"])
+    base = min(run_case(ctx, lang, solution, base_req, timeout * factor)[3] for _ in range(3))
     times, lines, perf_ok = [], [], True
     for n in p["sizes"]:
         cache = os.path.join(ctx.perf_cache, "%s_%d.json" % (pack.id, n))
@@ -228,7 +232,7 @@ def _run_perf(ctx, pack, lang, solution, suite, ns, cmode, factor, timeout):
             except OSError:
                 pass
         limit = p["limit_ms"] / 1000.0 * factor
-        ok, got, err, dt = run_case(ctx, lang, solution, suite, args, limit + base + 5)
+        ok, got, err, dt = run_case(ctx, lang, solution, request(args), limit + base + 5)
         net = max(dt - base, 0.0)
         good = ok and same(exp, got, cmode)
         times.append(net)

@@ -6,7 +6,7 @@ Think of it as a small, local, open-source cousin of TestGorilla or Codility, wi
 
 > **Status: 0.2.0, early.** The plugin layer is the product. The optional pane and timer (a *mod*) use Claude Code's early-access Mods API and may break between releases. See [Limits](#honest-limits).
 
-> **Supported language: Python only.** Live-coding solutions must be written in Python (3.11 or newer): the runner tests `.mockinterview/work/solution.py`, so code in another language cannot be run and scores 0 for implementation. System-design rounds involve no code, so they are not affected. JavaScript, Go and Rust are planned; see [docs/languages.md](docs/languages.md).
+> **Supported languages: Python and JavaScript.** Live-coding solutions are written in Python (3.11 or newer, the default) or JavaScript (Bun, or Node 18 or newer). Say "in JavaScript" when you start, or set the `default_language` option. Go and Rust are planned; see [docs/languages.md](docs/languages.md). System-design rounds involve no code, so they are not affected.
 
 ## Install
 
@@ -53,7 +53,7 @@ A first session:
 1. Open a folder where you want to work and start Claude Code.
 2. Run `/mockinterview:interview` and tell it your level.
 3. Say "go". The clock starts and you get the problem.
-4. Write your solution in **your own editor**, in `.mockinterview/work/solution.py`. Say "run my tests" when you want them run.
+4. Write your solution in **your own editor**, in `.mockinterview/work/solution.py` (`solution.js` for JavaScript). Say "run my tests" when you want them run.
 5. Say "I'm done". After the last round you get a scorecard and a short debrief.
 
 ## What is in the box
@@ -101,7 +101,7 @@ The user and project folders are optional: create them only if you want to add c
 ## Requirements and permissions
 
 - Claude Code with plugin support (v2.1.271 or later) and Python 3.11 or newer; the runner uses only the standard library.
-- Solutions are Python in 0.2.0. In an interview round they may import only the standard library; practice and teach allow any installed package.
+- Solutions are Python or JavaScript. JavaScript needs `bun` or `node` on your PATH; `mi.py langs` shows what was found. In an interview round a solution may use only the standard library (Node builtins for JavaScript, and no packages in `package.json`); practice and teach allow any installed package.
 - The skills call the runner through the Bash tool. To avoid a permission prompt on every call, you can allow just the runner in `.claude/settings.json`:
 
 ```json
@@ -116,7 +116,7 @@ Everything is local: sessions and work files live in `.mockinterview/` inside yo
 
 - **Guards are friction, not security.** You own the machine and can read any file. The guard only prevents accidental spoilers.
 - **The mod is early access.** It depends on the Mods API, which changes between releases. How it behaves in the Desktop app, VS Code and mobile is not verified yet; the terminal is the primary target. The plugin layer does not depend on it.
-- **Python only** for solutions and for the runner in 0.2.0.
+- **Python and JavaScript** for solutions; the runner itself is Python. Problem statements show Python names and types: in JavaScript the names are camelCase (`two_sum` is `twoSum`), as the stub in the work file shows.
 - **The scorer is an AI judgement** for everything except test results. It cites evidence, and you can disagree with it.
 - **Staff behavioural round** is not included yet.
 - Problems are classic patterns written for this project; the `source` field of each pack says whether it is original, adapted or third-party.

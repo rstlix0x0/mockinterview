@@ -105,7 +105,7 @@ Language errors (exit `1`):
 | `unknown_runtime` | The language has no runtime with that id |
 | `toolchain_missing` | The language's `detect` command failed, or its `run` command could not be started |
 | `untrusted` | The language file is outside the built-in root and its folder is not trusted; `root` names it |
-| `dependencies_not_allowed` | Interview mode, `run`: the solution imports something outside the standard library; `found` lists it |
+| `dependencies_not_allowed` | Interview mode, `run`: the solution imports something outside the standard library (JavaScript: or `work/package.json` lists packages); `found` lists it |
 
 ## run result
 
@@ -123,7 +123,7 @@ Language errors (exit `1`):
 }
 ```
 
-In `interview` mode `failures[].shown` is `false` for `edge` and `hidden` cases and their `args`, `expected` and `got` are omitted; only the counts in `by_category` are visible. In `practice` mode, details are shown for up to three failing cases.
+For class problems, `args` shows the calls with the method names of the session's language (`getMin` in JavaScript). In `interview` mode `failures[].shown` is `false` for `edge` and `hidden` cases and their `args`, `expected` and `got` are omitted; only the counts in `by_category` are visible. In `practice` mode, details are shown for up to three failing cases.
 
 ## Scoring
 
