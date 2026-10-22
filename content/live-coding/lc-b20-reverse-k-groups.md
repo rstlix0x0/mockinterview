@@ -41,6 +41,12 @@ def reverse_k_group(values, k):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+reverse_k_group(values: int[], k: int) -> int[]
+```
+
 ## Tests
 
 ```json tests

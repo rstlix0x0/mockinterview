@@ -41,6 +41,12 @@ def trap_rain(height):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+trap_rain(height: int[]) -> int
+```
+
 ## Tests
 
 ```json tests

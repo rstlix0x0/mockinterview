@@ -43,6 +43,12 @@ def min_window(s, t):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+min_window(s: string, t: string) -> string
+```
+
 ## Tests
 
 ```json tests

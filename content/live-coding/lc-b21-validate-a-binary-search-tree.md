@@ -40,6 +40,12 @@ def validate_bst(tree):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+validate_bst(tree: int?[]) -> bool
+```
+
 ## Tests
 
 ```json tests

@@ -49,6 +49,14 @@ class Autocomplete:
         raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+Autocomplete()
+add(text: string, count: int) -> void
+suggest(prefix: string, k: int) -> string[]
+```
+
 ## Tests
 
 ```json tests

@@ -46,6 +46,13 @@ class RateLimiter:
         raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+RateLimiter(limit: int, window: int)
+allow(key: string, ts: int) -> bool
+```
+
 ## Tests
 
 ```json tests
@@ -89,7 +96,7 @@ def gen_perf(n):
     ts = 0
     for _ in range(n):
         ts += rnd.randint(0, 40)
-        calls.append(["allow", [rnd.randint(0, 50), ts]])
+        calls.append(["allow", ["k%d" % rnd.randint(0, 50), ts]])
     return {"calls": calls}
 ```
 

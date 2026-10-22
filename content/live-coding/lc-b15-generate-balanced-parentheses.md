@@ -40,6 +40,12 @@ def generate_parentheses(n):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+generate_parentheses(n: int) -> string[]
+```
+
 ## Tests
 
 ```json tests

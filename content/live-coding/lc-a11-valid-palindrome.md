@@ -40,6 +40,12 @@ def is_palindrome(s):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+is_palindrome(s: string) -> bool
+```
+
 ## Tests
 
 ```json tests

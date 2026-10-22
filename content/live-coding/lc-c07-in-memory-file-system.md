@@ -68,6 +68,17 @@ class InMemoryFS:
         raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+InMemoryFS()
+mkdir(path: string) -> bool
+write(path: string, content: string) -> bool
+read(path: string) -> string?
+ls(path: string) -> string[]?
+delete(path: string) -> bool
+```
+
 ## Tests
 
 ```json tests

@@ -50,6 +50,12 @@ def evaluate_sheet(cells):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+evaluate_sheet(cells: {string: string}) -> {string: int | string}
+```
+
 ## Tests
 
 ```json tests

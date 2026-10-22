@@ -73,6 +73,18 @@ class JobQueue:
         raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+JobQueue(max_attempts: int)
+submit(id: string, priority: int, available_at: int) -> bool
+claim(now: int) -> string?
+complete(id: string) -> bool
+fail(id: string, now: int, backoff: int) -> string?
+dead_letters() -> string[]
+stats() -> record{pending: int, in_flight: int, done: int, dead: int}
+```
+
 ## Tests
 
 ```json tests

@@ -42,6 +42,12 @@ def combination_sum(candidates, target):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+combination_sum(candidates: int[], target: int) -> int[][]
+```
+
 ## Tests
 
 ```json tests

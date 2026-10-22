@@ -40,6 +40,12 @@ def fizz_buzz(n):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+fizz_buzz(n: int) -> string[]
+```
+
 ## Tests
 
 ```json tests

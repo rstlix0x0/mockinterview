@@ -112,6 +112,7 @@ class RunnerTest(unittest.TestCase):
         out, code = self.env.mi("lint", "--all")
         self.assertTrue(out["pass"], out)
         self.assertEqual(code, 0)
+        self.assertEqual([r for r in out["results"] if r.get("warnings")], [])
         out, code = self.env.mi("selftest", "--all", "--perf")
         self.assertTrue(out["pass"], out)
         self.assertEqual(out["checked"], 2)
@@ -131,6 +132,41 @@ class RunnerTest(unittest.TestCase):
         self.assertIn("level 'expert'", errors)
         self.assertIn("missing section", errors)
         self.assertIn("case 'v' args ['a', 'c'] must be the stub's parameters ['a', 'b']", errors)
+
+    def test_lint_checks_signature_against_stub(self):
+        src = os.path.join(self.env.plugin, "content", "live-coding", "lc-fx-counter.md")
+        with open(src, encoding="utf-8") as fh:
+            text = fh.read()
+        cases = [("add(x: int) -> void", "add(y: int) -> void", "add(y) must have the stub's parameters (x)"),
+                 ("total() -> int", "", "the stub's method total is missing"),
+                 ("total() -> int", "total() -> int\nreset() -> void", "method reset is not in the stub"),
+                 ("total() -> int", "total()", "method total needs a return type (void when it returns nothing)"),
+                 ("add(x: int)", "add(x: integer)", "line 2: unknown type 'integer'")]
+        for old, new, message in cases:
+            bad = os.path.join(self.env.tmp, "sig.md")
+            with open(bad, "w", encoding="utf-8") as fh:
+                fh.write(text.replace(old, new, 1))
+            out, code = self.env.mi("lint", bad)
+            self.assertEqual(code, 1, message)
+            self.assertIn("signature: " + message, out["results"][0]["errors"])
+        with open(bad, "w", encoding="utf-8") as fh:
+            fh.write(text.split("## Signature")[0] + "## Tests" + text.split("## Tests")[1])
+        out, _ = self.env.mi("lint", bad)
+        self.assertTrue(out["pass"])
+        self.assertIn("no '## Signature'", out["results"][0]["warnings"][0])
+
+    def test_selftest_checks_oracle_values_against_signature(self):
+        path = os.path.join(self.env.plugin, "content", "live-coding", "lc-fx-two-sum.md")
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(text.replace("target: int) -> int[]", "target: int) -> [int, string]"))
+        out, code = self.env.mi("selftest", "lc-fx-two-sum")
+        self.assertEqual(code, 1)
+        result = out["results"][0]
+        self.assertFalse(result["pass"])
+        self.assertEqual(result["passed"], result["total"])
+        self.assertRegex(result["signature_errors"][0], r"^case '.+' result\[1\]: expected string, got int \d+$")
 
     def test_project_pack_overrides_builtin_and_needs_trust(self):
         src = os.path.join(self.env.plugin, "content", "live-coding", "lc-fx-two-sum.md")

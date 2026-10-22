@@ -47,6 +47,14 @@ class MedianFinder:
         raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+MedianFinder()
+add_num(x: int) -> void
+find_median() -> float
+```
+
 ## Tests
 
 ```json tests

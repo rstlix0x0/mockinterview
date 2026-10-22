@@ -27,6 +27,12 @@ def two_sum(nums, target):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+two_sum(nums: int[], target: int) -> int[]
+```
+
 ## Tests
 
 ```json tests

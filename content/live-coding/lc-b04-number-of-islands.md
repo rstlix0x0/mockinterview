@@ -41,6 +41,12 @@ def num_islands(grid):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+num_islands(grid: string[]) -> int
+```
+
 ## Tests
 
 ```json tests

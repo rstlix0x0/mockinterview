@@ -41,6 +41,12 @@ def top_k_frequent(nums, k):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+top_k_frequent(nums: int[], k: int) -> int[]
+```
+
 ## Tests
 
 ```json tests

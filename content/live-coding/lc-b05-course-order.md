@@ -42,6 +42,12 @@ def topo_order(n, edges):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+topo_order(n: int, edges: int[][]) -> int[]
+```
+
 ## Tests
 
 ```json tests

@@ -52,6 +52,12 @@ def analyze_logs(lines, p):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+analyze_logs(lines: string[], p: int) -> record{valid: int, malformed: int, status: {string: int}, slowest: [string, int][]}
+```
+
 ## Tests
 
 ```json tests

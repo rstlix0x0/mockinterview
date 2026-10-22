@@ -46,6 +46,12 @@ def evaluate(expr):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+evaluate(expr: string) -> int | string
+```
+
 ## Tests
 
 ```json tests

@@ -42,6 +42,12 @@ def valid_brackets(s):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+valid_brackets(s: string) -> bool
+```
+
 ## Tests
 
 ```json tests

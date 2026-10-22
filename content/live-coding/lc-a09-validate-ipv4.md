@@ -42,6 +42,12 @@ def valid_ipv4(s):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+valid_ipv4(s: string) -> bool
+```
+
 ## Tests
 
 ```json tests

@@ -40,6 +40,12 @@ def edit_distance(a, b):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+edit_distance(a: string, b: string) -> int
+```
+
 ## Tests
 
 ```json tests

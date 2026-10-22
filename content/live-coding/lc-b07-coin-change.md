@@ -44,6 +44,12 @@ def coin_change(coins, amount):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+coin_change(coins: int[], amount: int) -> int
+```
+
 ## Tests
 
 ```json tests

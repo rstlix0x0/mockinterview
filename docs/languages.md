@@ -1,6 +1,6 @@
 # Solution languages
 
-> **Status: P1 (foundation) and P2 (JavaScript) are implemented; signatures, Go and Rust are planned.** Language files, `langs`, `--lang`, the session fields, the result file and the dependency checks exist today, with Python and JavaScript built in. Fields and placeholders marked *planned* are refused by the loader until their phase lands.
+> **Status: P1 (foundation), P2 (JavaScript) and P3 (signatures) are implemented; Go and Rust are planned.** Language files, `langs`, `--lang`, the session fields, the result file and the dependency checks exist today, with Python and JavaScript built in. Fields and placeholders marked *planned* are refused by the loader until their phase lands.
 
 Other languages are for the **candidate's solution only**. The plugin itself (runner, oracles, expected values, scoring, tools) stays Python, standard library only. The one non-Python piece per language is a small **shim** that loads the solution and calls it inside the test subprocess.
 
@@ -170,10 +170,11 @@ On failure: `{"ok": false, "code": "dependencies_not_allowed", "error": "intervi
 
 ## Signatures (typed languages)
 
-Go and Rust cannot call a function by name at run time, so they need glue generated for each problem from a strict signature. Each live-coding pack gains a `## Signature` section; lint checks its grammar and `selftest` checks that the oracle's real inputs and outputs conform.
+Go and Rust cannot call a function by name at run time, so they need glue generated for each problem from a strict signature. Every built-in live-coding pack has a `## Signature` section (`runner/lib/signature.py`; grammar in [authoring.md](authoring.md#signature-block)); lint checks its grammar and that it names exactly the stub's parameters and methods, and `selftest` checks that the oracle's real inputs and outputs conform, perf inputs included with `--perf`.
 
 ```
-int · float · bool · string · T[] · T? (nullable) · [A, B] (tuple) · {string: T} (map) · record{a: T, ...}
+int (64-bit) · float · bool · string · T[] · T? (nullable) · [A, B] (tuple) · {string: T} (map)
+record{a: T, b?: U} (b may be absent) · A | B (union) · void (method returns only)
 ```
 
 | Type | Go | Rust | JavaScript |
@@ -185,7 +186,7 @@ int · float · bool · string · T[] · T? (nullable) · [A, B] (tuple) · {str
 | `[A, B]` | generated struct, encoded as an array | `(A, B)` | `Array` |
 | `{string: T}` | `map[string]T` | `HashMap<String, T>` | `Object` |
 
-Today the types live only in the Python stub docstrings: about 47 packs are clean and about 10 are loose or untyped (`lc-c02`, `lc-c03`, `lc-c07`, `lc-c08`, `lc-c11`, `object` returns, unions such as `int | 'ERROR'`). A pack whose signature does not map to a language is offered in Python and JavaScript only; `draw --lang go` skips it.
+The signatures were converted from the stub docstrings by script and the loose ones written by hand. Fixed lengths such as `int[2]` became plain lists. Two packs need a union, `lc-c06` (`int | string`) and `lc-c09` (`{string: int | string}`); `lc-c04` and `lc-c08` return records with optional keys. A pack whose signature does not map to a language is offered in Python and JavaScript only; `draw --lang go` skips it. A pack without a signature (an older user pack) gets a lint warning and is treated the same way.
 
 ## Commands and session
 
@@ -201,7 +202,7 @@ Today the types live only in the Python stub docstrings: about 47 packs are clea
 |---|---|
 | P1 Foundation (**done**) | Python 3.11 floor, TOML loader, `langs`, `--lang`, session fields, result file (B), `python.toml` with no behaviour change, dependency check for Python; skills, scorer, mod and docs follow the session's solution file |
 | P2 JavaScript (**done**) | One shim for Bun and Node, camelCase stubs, `package.json` dependency check. All live-coding packs work: no types needed |
-| P3 Signatures | `## Signature` in every live-coding pack (converted from the docstrings by script, the loose ones by hand); lint and selftest checks; authoring.md updated |
+| P3 Signatures (**done**) | `## Signature` in every live-coding pack (converted from the docstrings by script, the loose ones by hand); lint and selftest checks; authoring.md updated |
 | P4 Go and Rust | Type mapping, generated glue, scaffold, cached builds, manifest checks, the language filter in `draw` |
 
 Each phase ends with the runner tests, mod tests, `lint --all` and `selftest --all` passing, and its docs updated.

@@ -41,6 +41,12 @@ def merge_intervals(intervals):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+merge_intervals(intervals: int[][]) -> int[][]
+```
+
 ## Tests
 
 ```json tests

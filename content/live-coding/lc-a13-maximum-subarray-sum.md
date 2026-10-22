@@ -40,6 +40,12 @@ def max_subarray(nums):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+max_subarray(nums: int[]) -> int
+```
+
 ## Tests
 
 ```json tests

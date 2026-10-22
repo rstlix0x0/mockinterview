@@ -51,6 +51,12 @@ def schedule_tasks(tasks, workers):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+schedule_tasks(tasks: record{id: string, duration: int, deps: string[]}[], workers: int) -> record{makespan?: int, starts?: {string: int}, error?: string}
+```
+
 ## Tests
 
 ```json tests

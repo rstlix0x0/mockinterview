@@ -40,6 +40,12 @@ def kth_largest(nums, k):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+kth_largest(nums: int[], k: int) -> int
+```
+
 ## Tests
 
 ```json tests

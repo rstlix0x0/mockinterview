@@ -42,6 +42,12 @@ def word_break(s, word_dict):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+word_break(s: string, word_dict: string[]) -> bool
+```
+
 ## Tests
 
 ```json tests

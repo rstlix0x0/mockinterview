@@ -41,6 +41,12 @@ def top_words(text, k):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+top_words(text: string, k: int) -> [string, int][]
+```
+
 ## Tests
 
 ```json tests

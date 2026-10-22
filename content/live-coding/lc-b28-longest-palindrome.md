@@ -40,6 +40,12 @@ def longest_palindrome(s):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+longest_palindrome(s: string) -> string
+```
+
 ## Tests
 
 ```json tests

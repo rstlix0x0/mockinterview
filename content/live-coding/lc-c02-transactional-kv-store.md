@@ -32,7 +32,7 @@ Reads inside a transaction see that transaction's uncommitted writes.
 **Signature:** `class TransactionalKV { set(k, v); get(k) -> v | null; delete(k) -> bool; begin(); commit() -> bool; rollback() -> bool }`
 
 **Constraints:**
-- keys are strings or integers, values are integers or strings
+- keys are strings, values are integers
 - up to 100000 operations
 - up to 1000 distinct keys
 
@@ -72,6 +72,18 @@ class TransactionalKV:
     def rollback(self):
         """rollback() -> bool"""
         raise NotImplementedError
+```
+
+## Signature
+
+```signature
+TransactionalKV()
+set(k: string, v: int) -> void
+get(k: string) -> int?
+delete(k: string) -> bool
+begin() -> void
+commit() -> bool
+rollback() -> bool
 ```
 
 ## Tests
@@ -129,9 +141,9 @@ def gen_random(seed):
 def gen_perf(n):
     rnd = random.Random(102)
     return rand_ops(rnd, ("TransactionalKV",), n, [
-        (8, lambda r: ("set", r.randint(0, 300), r.randint(0, 99))),
-        (6, lambda r: ("get", r.randint(0, 300))),
-        (2, lambda r: ("delete", r.randint(0, 300))),
+        (8, lambda r: ("set", "k%d" % r.randint(0, 300), r.randint(0, 99))),
+        (6, lambda r: ("get", "k%d" % r.randint(0, 300))),
+        (2, lambda r: ("delete", "k%d" % r.randint(0, 300))),
         (1, lambda r: ("begin",)), (1, lambda r: ("commit",)), (1, lambda r: ("rollback",))])
 ```
 

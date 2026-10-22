@@ -40,6 +40,12 @@ def single_number(nums):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+single_number(nums: int[]) -> int
+```
+
 ## Tests
 
 ```json tests

@@ -7,6 +7,7 @@ file, so the solution's own stdout and stderr never get in the way. Expected val
 """
 import bisect
 import copy
+import hashlib
 import heapq
 import itertools
 import json
@@ -21,7 +22,7 @@ import time
 from collections import Counter, OrderedDict, defaultdict, deque
 from fractions import Fraction
 
-from . import languages
+from . import languages, signature
 from .util import MiError, atomic_write, short
 
 try:  # POSIX only
@@ -207,30 +208,33 @@ def run_suite(ctx, pack, lang, solution, mode="all", perf=False, fuzz=None, seed
     }
 
 
+def _perf_input(ctx, pack, ns, suite, n):
+    """(args, expected) for perf size n, from the perf cache when it is there."""
+    os.makedirs(ctx.perf_cache, exist_ok=True)
+    digest = hashlib.sha1(pack.oracle_source().encode("utf-8")).hexdigest()[:10]  # a changed oracle starts afresh
+    cache = os.path.join(ctx.perf_cache, "%s_%d_%s.json" % (pack.id, n, digest))
+    try:
+        with open(cache, encoding="utf-8") as fh:
+            args, exp = json.load(fh)
+        return args, exp
+    except (OSError, ValueError, TypeError):
+        pass
+    args = ns["gen_perf"](n)
+    exp = oracle_expected(ns, suite, args)
+    try:
+        atomic_write(cache, json.dumps([args, exp]))
+    except OSError:
+        pass
+    return args, exp
+
+
 def _run_perf(ctx, pack, lang, solution, suite, request, ns, cmode, factor, timeout):
     p = suite["perf"]
-    os.makedirs(ctx.perf_cache, exist_ok=True)
     base_req = request(suite["cases"][0]["args"])
     base = min(run_case(ctx, lang, solution, base_req, timeout * factor)[3] for _ in range(3))
     times, lines, perf_ok = [], [], True
     for n in p["sizes"]:
-        cache = os.path.join(ctx.perf_cache, "%s_%d.json" % (pack.id, n))
-        cached = None
-        if os.path.exists(cache):
-            try:
-                with open(cache, encoding="utf-8") as fh:
-                    cached = json.load(fh)
-            except (OSError, ValueError):
-                cached = None
-        if cached:
-            args, exp = cached
-        else:
-            args = ns["gen_perf"](n)
-            exp = oracle_expected(ns, suite, args)
-            try:
-                atomic_write(cache, json.dumps([args, exp]))
-            except OSError:
-                pass
+        args, exp = _perf_input(ctx, pack, ns, suite, n)
         limit = p["limit_ms"] / 1000.0 * factor
         ok, got, err, dt = run_case(ctx, lang, solution, request(args), limit + base + 5)
         net = max(dt - base, 0.0)
@@ -278,4 +282,33 @@ def selftest_pack(ctx, pack, fuzz=None, perf=False, factor=1.0):
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(body)
         python = languages.get(ctx, "python", builtin_only=True)
-        return run_suite(ctx, pack, python, path, mode="all", perf=perf, fuzz=fuzz, factor=factor)
+        res = run_suite(ctx, pack, python, path, mode="all", perf=perf, fuzz=fuzz, factor=factor)
+    sig = pack.signature()
+    if sig is not None:
+        res["signature"] = check_signature(ctx, pack, sig, fuzz=fuzz, perf=perf)
+    return res
+
+
+def check_signature(ctx, pack, sig, fuzz=None, perf=False, seed=10000):
+    """Check the oracle's real inputs and outputs (cases, fuzz seeds, perf sizes) against the pack's signature.
+
+    Returns {"checked": n, "errors": [first message per input, at most 5]}."""
+    suite = pack.suite()
+    ns = load_oracle(pack)
+    inputs = [("case '%s'" % c["name"], c["args"], None) for c in suite["cases"]]
+    n_fuzz = suite.get("fuzz", 0) if fuzz is None else fuzz
+    if n_fuzz and "gen_random" in ns:
+        inputs += [("fuzz seed=%d" % sd, ns["gen_random"](sd), None) for sd in range(seed, seed + n_fuzz)]
+    if perf and suite.get("perf"):
+        for n in suite["perf"]["sizes"]:
+            args, exp = _perf_input(ctx, pack, ns, suite, n)
+            inputs.append(("perf n=%d" % n, args, exp))
+    errors = []
+    for where, args, exp in inputs:
+        if exp is None:
+            exp = oracle_expected(ns, suite, args)
+        args = json.loads(json.dumps(args))
+        msg = signature.check_call(sig, suite["kind"], args, exp, where)
+        if msg:
+            errors.append(msg)
+    return {"checked": len(inputs), "errors": errors[:5]}

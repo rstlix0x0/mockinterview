@@ -62,6 +62,14 @@ class Router:
         raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+Router()
+add_route(method: string, pattern: string, handler: string) -> void
+route(method: string, path: string) -> record{handler?: string, params?: {string: string}, error?: string, allowed?: string[]}
+```
+
 ## Tests
 
 ```json tests

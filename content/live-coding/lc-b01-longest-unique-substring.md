@@ -43,6 +43,12 @@ def longest_unique_substring(s):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+longest_unique_substring(s: string) -> int
+```
+
 ## Tests
 
 ```json tests

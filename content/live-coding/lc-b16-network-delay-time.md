@@ -42,6 +42,12 @@ def network_delay(times, n, k):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+network_delay(times: int[][], n: int, k: int) -> int
+```
+
 ## Tests
 
 ```json tests

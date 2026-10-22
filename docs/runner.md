@@ -90,7 +90,7 @@ Every command prints **one JSON object** on stdout. Success: `{"ok": true, ...}`
 | `score --ratings FILE\|-` | Takes ratings JSON, computes scores, writes `scorecard`, appends to history, state `scored` |
 | `abandon` | Ends the session, state `abandoned`, logged in history (no penalty) |
 | `lint PATH... \| --all` | Validates pack files |
-| `selftest [ID... \| --all] [--fuzz N] [--perf]` | Runs each oracle against its own tests |
+| `selftest [ID... \| --all] [--fuzz N] [--perf]` | Runs each oracle against its own tests, and checks its inputs and results against the pack's `## Signature`; a mismatch fails the pack with `signature_errors` |
 | `history [--last N]` | Past sessions and per-tag averages |
 | `repeat ID --reason TEXT [--days 3]` / `repeat --list` | Marks a problem to repeat (appends to `.mockinterview/repeat.md`: `DATE \| id \| reason \| repeat after DATE`), or lists the marks and which are due |
 | `trust ROOT` | Acknowledges a non-built-in root |

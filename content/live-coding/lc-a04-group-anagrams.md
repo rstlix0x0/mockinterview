@@ -41,6 +41,12 @@ def group_anagrams(words):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+group_anagrams(words: string[]) -> string[][]
+```
+
 ## Tests
 
 ```json tests

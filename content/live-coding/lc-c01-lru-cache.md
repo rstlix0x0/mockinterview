@@ -48,6 +48,14 @@ class LRUCache:
         raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+LRUCache(capacity: int)
+get(key: int) -> int
+put(key: int, value: int) -> void
+```
+
 ## Tests
 
 ```json tests

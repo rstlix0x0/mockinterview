@@ -42,6 +42,12 @@ def max_path_sum(tree):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+max_path_sum(tree: int?[]) -> int
+```
+
 ## Tests
 
 ```json tests

@@ -635,8 +635,11 @@ def cmd_selftest(ctx, a):
         except Exception as exc:
             item.update(pass_=False, errors=["selftest crashed: %s" % exc])
             return item
-        item.update(pass_=res["failed"] == 0, passed=res["passed"], total=res["total"],
+        sig = res.get("signature") or {"errors": []}
+        item.update(pass_=res["failed"] == 0 and not sig["errors"], passed=res["passed"], total=res["total"],
                     by_category=res["by_category"], failures=[f for f in res["failures"] if f["shown"]][:2])
+        if sig["errors"]:
+            item["signature_errors"] = sig["errors"]
         if a.perf and res["perf"].get("ran"):
             item["perf"] = res["perf"]
         return item

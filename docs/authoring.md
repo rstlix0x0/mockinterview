@@ -47,6 +47,7 @@ Sections are level-2 headings (`## Name`). Names are case-insensitive. Headings 
 |---|---|---|---|
 | live-coding | `## Statement` | Engineer | The whole problem as the interviewer says it: description, signature, constraints, examples |
 | live-coding | `## Stub` | Engineer | One fenced `python` block copied to `work/solution.py` at the start (another language gets its language file's stub template, see languages.md). Its parameter names and order are the contract for other languages: each test's `args` keys must be exactly the entry's parameters, and JavaScript receives them positionally in this order |
+| live-coding | `## Signature` | Runner | One fenced `signature` block: the JSON types of the inputs and outputs (see below). Typed languages (Go, Rust) need it; without it a pack still runs in Python and JavaScript, and lint warns |
 | live-coding | `## Tests` | Hidden | One fenced `json tests` block (see below) |
 | live-coding | `## Oracle` | Hidden | One fenced `python oracle` block: the reference solution and generators |
 | live-coding | `## Interviewer notes` | Hidden | Clarifying questions, hint ladder, follow-ups, traps |
@@ -78,6 +79,35 @@ The `json tests` block is one JSON object:
 - Each case has exactly one tag from `visible`, `edge`, `hidden`. Expected values are **not** stored: they are computed by the oracle.
 - `fuzz` is the number of random cases for the fuzz category; `perf` describes scaling checks (optional).
 
+## Signature block
+
+The types of the entry's inputs and outputs, with the stub's Python names: one line for a `func` pack, and for an `ops` pack the constructor (no return type) followed by one line per method. Lines starting with `#` are comments.
+
+````markdown
+```signature
+two_sum(nums: int[], target: int) -> int[]
+```
+
+```signature
+LRUCache(capacity: int)
+get(key: int) -> int
+put(key: int, value: int) -> void
+```
+````
+
+| Type | Meaning |
+|---|---|
+| `int`, `float`, `bool`, `string` | `int` is a signed 64-bit integer; `float` also accepts integers |
+| `T[]` | list |
+| `T?` | `T` or `null` (`int?[]` is a list of nullable ints, `int[]?` a nullable list) |
+| `[A, B]` | tuple: a list of exactly these types, two or more |
+| `{string: T}` | object used as a map |
+| `record{a: T, b?: U}` | object with exactly these keys; `b?` may be absent (not `null` unless `U` is nullable) |
+| `A \| B` | either; group with parentheses: `(int \| string)[]`. Typed languages may not offer a pack that needs it |
+| `void` | a method's return type when it returns nothing |
+
+`lint` checks the grammar and that the names, parameters (in order) and methods are exactly the stub's. `selftest` runs the oracle on every case, the fuzz seeds and (with `--perf`) the perf inputs and checks each input and result against the signature: a value that does not conform fails the pack with `signature_errors`, such as `case 'example-1' result[1]: expected string, got int 1`. Prefer the type the tests really use (`string` keys rather than `int | string`) so that typed languages can offer the pack.
+
 ## Oracle block
 
 Python that runs with `random`, `re`, `heapq`, `bisect`, `math`, `itertools`, `defaultdict`, `deque`, `Counter`, `OrderedDict`, `Fraction` and `rand_ops` already in scope.
@@ -105,7 +135,7 @@ System-design packs use `P0` to `P3` in the same shape. Rungs are given in order
 
 ```bash
 python3 runner/mi.py lint path/to/pack.md      # structure, JSON, headings
-python3 runner/mi.py selftest lc-your-id       # the oracle must pass its own tests
+python3 runner/mi.py selftest lc-your-id       # the oracle passes its own tests; values match the signature
 python3 runner/mi.py list --roots              # roots, trust status, overrides
 ```
 

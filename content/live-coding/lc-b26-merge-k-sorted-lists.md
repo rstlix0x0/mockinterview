@@ -41,6 +41,12 @@ def merge_k_sorted(lists):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+merge_k_sorted(lists: int[][]) -> int[]
+```
+
 ## Tests
 
 ```json tests

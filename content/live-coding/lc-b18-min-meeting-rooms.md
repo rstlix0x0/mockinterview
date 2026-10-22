@@ -40,6 +40,12 @@ def min_meeting_rooms(intervals):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+min_meeting_rooms(intervals: int[][]) -> int
+```
+
 ## Tests
 
 ```json tests

@@ -42,6 +42,12 @@ def sliding_window_max(nums, k):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+sliding_window_max(nums: int[], k: int) -> int[]
+```
+
 ## Tests
 
 ```json tests

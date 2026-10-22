@@ -40,6 +40,12 @@ def lis_length(nums):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+lis_length(nums: int[]) -> int
+```
+
 ## Tests
 
 ```json tests

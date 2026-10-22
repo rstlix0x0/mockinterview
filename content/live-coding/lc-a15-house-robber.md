@@ -41,6 +41,12 @@ def max_robbed(nums):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+max_robbed(nums: int[]) -> int
+```
+
 ## Tests
 
 ```json tests

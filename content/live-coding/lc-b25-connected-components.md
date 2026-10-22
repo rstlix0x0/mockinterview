@@ -41,6 +41,12 @@ def count_components(n, edges):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+count_components(n: int, edges: int[][]) -> int
+```
+
 ## Tests
 
 ```json tests

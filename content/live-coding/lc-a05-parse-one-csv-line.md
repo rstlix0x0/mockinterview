@@ -51,6 +51,12 @@ def parse_csv_line(line):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+parse_csv_line(line: string) -> string[]?
+```
+
 ## Tests
 
 ```json tests

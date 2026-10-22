@@ -40,6 +40,12 @@ def lowest_common_ancestor(tree, p, q):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+lowest_common_ancestor(tree: int?[], p: int, q: int) -> int
+```
+
 ## Tests
 
 ```json tests

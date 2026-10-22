@@ -40,6 +40,12 @@ def rotate_matrix(matrix):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+rotate_matrix(matrix: int[][]) -> int[][]
+```
+
 ## Tests
 
 ```json tests

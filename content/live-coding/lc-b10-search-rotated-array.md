@@ -43,6 +43,12 @@ def search_rotated(nums, target):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+search_rotated(nums: int[], target: int) -> int
+```
+
 ## Tests
 
 ```json tests

@@ -43,6 +43,12 @@ def decode_ways(s):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+decode_ways(s: string) -> int
+```
+
 ## Tests
 
 ```json tests

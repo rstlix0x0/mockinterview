@@ -41,6 +41,12 @@ def ladder_length(begin_word, end_word, word_list):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+ladder_length(begin_word: string, end_word: string, word_list: string[]) -> int
+```
+
 ## Tests
 
 ```json tests

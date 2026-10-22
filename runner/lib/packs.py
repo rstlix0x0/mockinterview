@@ -4,6 +4,7 @@ import json
 import os
 import re
 
+from . import signature as sigmod
 from .util import MiError, atomic_write, read_json
 
 LEVELS = ["junior", "mid", "senior", "staff"]
@@ -194,6 +195,11 @@ class Pack:
     def oracle_source(self):
         return find_fence(self.sections.get("oracle", ""), "python oracle")
 
+    def signature(self):
+        """The parsed ```signature block, or None when the pack has none. Raises SignatureError."""
+        raw = find_fence(self.sections.get("signature", ""), "signature")
+        return None if raw is None else sigmod.parse(raw, self.meta.get("kind"))
+
     def reference_estimate(self):
         raw = find_fence(self.sections.get("reference estimate", ""), "json estimate")
         return json.loads(raw) if raw is not None else None
@@ -368,6 +374,44 @@ def lint_pack(pack, check_oracle=True):
     return errors, warnings
 
 
+def _lint_signature(pack, stub, err, warn):
+    """The ## Signature must parse and name exactly the stub's function or class, methods and parameters."""
+    if not pack.section("signature"):
+        warn("no '## Signature'; typed languages (Go, Rust) will not offer this pack")
+        return
+    try:
+        sig = pack.signature()
+    except sigmod.SignatureError as exc:
+        err("signature: %s" % exc)
+        return
+    if sig is None:
+        err("## Signature needs one fenced 'signature' block")
+        return
+    entry, kind = pack.meta.get("entry"), pack.meta.get("kind")
+    if sig.name != entry:
+        err("signature: %s must be the entry %s" % (sig.name, entry))
+        return
+    if not stub or kind not in ("func", "ops"):
+        return
+    params, methods = stub_signatures(stub, entry)
+    if params is None:
+        return
+    names = [n for n, _t in sig.params]
+    if names != params:
+        err("signature: %s(%s) must have the stub's parameters (%s)" % (entry, ", ".join(names), ", ".join(params)))
+    if kind == "ops":
+        stub_methods = dict(methods)
+        for m in sig.methods:
+            if m.name not in stub_methods:
+                err("signature: method %s is not in the stub" % m.name)
+            elif [n for n, _t in m.params] != stub_methods[m.name]:
+                err("signature: %s(%s) must have the stub's parameters (%s)" % (
+                    m.name, ", ".join(n for n, _t in m.params), ", ".join(stub_methods[m.name])))
+        for name in stub_methods:
+            if sig.method(name) is None:
+                err("signature: the stub's method %s is missing" % name)
+
+
 def _lint_live_coding(pack, err, warn, check_oracle):
     meta = pack.meta
     for key in ("entry", "kind"):
@@ -390,6 +434,7 @@ def _lint_live_coding(pack, err, warn, check_oracle):
     if pack.section("stub") and not stub:
         err("## Stub needs one fenced 'python' block")
     params = stub_signatures(stub, meta.get("entry") or "")[0] if stub and meta.get("kind") == "func" else None
+    _lint_signature(pack, stub, err, warn)
     suite = None
     if pack.section("tests"):
         try:

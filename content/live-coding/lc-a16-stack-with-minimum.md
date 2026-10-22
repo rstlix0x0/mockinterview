@@ -57,6 +57,16 @@ class MinStack:
         raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+MinStack()
+push(x: int) -> void
+pop() -> int
+top() -> int
+get_min() -> int
+```
+
 ## Tests
 
 ```json tests

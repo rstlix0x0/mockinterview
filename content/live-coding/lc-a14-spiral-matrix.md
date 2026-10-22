@@ -41,6 +41,12 @@ def spiral_order(matrix):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+spiral_order(matrix: int[][]) -> int[]
+```
+
 ## Tests
 
 ```json tests

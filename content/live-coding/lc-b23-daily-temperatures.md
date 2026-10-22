@@ -40,6 +40,12 @@ def daily_temperatures(temps):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+daily_temperatures(temps: int[]) -> int[]
+```
+
 ## Tests
 
 ```json tests

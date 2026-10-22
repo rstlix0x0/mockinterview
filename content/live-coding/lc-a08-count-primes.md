@@ -42,6 +42,12 @@ def count_primes(n):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+count_primes(n: int) -> int
+```
+
 ## Tests
 
 ```json tests

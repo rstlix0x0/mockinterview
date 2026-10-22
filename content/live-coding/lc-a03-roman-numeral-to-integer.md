@@ -42,6 +42,12 @@ def roman_to_int(s):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+roman_to_int(s: string) -> int
+```
+
 ## Tests
 
 ```json tests

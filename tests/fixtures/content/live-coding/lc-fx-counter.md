@@ -32,6 +32,14 @@ class MiniCounter:
         pass
 ```
 
+## Signature
+
+```signature
+MiniCounter()
+add(x: int) -> void
+total() -> int
+```
+
 ## Tests
 
 ```json tests

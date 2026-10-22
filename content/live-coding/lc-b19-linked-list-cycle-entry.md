@@ -42,6 +42,12 @@ def cycle_start(next_idx):
     raise NotImplementedError
 ```
 
+## Signature
+
+```signature
+cycle_start(next_idx: int[]) -> int
+```
+
 ## Tests
 
 ```json tests
